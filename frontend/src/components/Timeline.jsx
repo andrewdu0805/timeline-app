@@ -58,6 +58,29 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
     });
   }
 
+  // Pre-calculate stack levels for collision detection
+  const placedTop = [];
+  const placedBottom = [];
+
+  const clicksWithStacks = state.clicks.map(click => {
+    const percent = (click.exactMs / totalMs) * 100;
+    const isTop = click.val === 1;
+    const placed = isTop ? placedTop : placedBottom;
+    
+    let maxStack = -1;
+    placed.forEach(p => {
+      // If within 1.5% of timeline width, they collide
+      if (Math.abs(p.percent - percent) < 1.5) {
+        maxStack = Math.max(maxStack, p.stackLevel);
+      }
+    });
+    
+    const stackLevel = maxStack + 1;
+    placed.push({ percent, stackLevel });
+    
+    return { ...click, percent, stackLevel };
+  });
+
   return (
     <div className="timeline-wrapper" ref={containerRef}>
       
@@ -92,8 +115,7 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
         ))}
         
         {/* Render Clicks as Markers */}
-        {state.clicks.map((click, i) => {
-          const clickPercent = (click.exactMs / totalMs) * 100;
+        {clicksWithStacks.map((click, i) => {
           const isTop = click.val === 1;
           const isMe = click.name === guestName;
           
@@ -101,7 +123,7 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
             <div 
               key={i} 
               className={`marker ${isTop ? 'top-marker' : 'bottom-marker'} ${isMe ? 'my-marker' : ''}`}
-              style={{ left: `${clickPercent}%` }}
+              style={{ left: `${click.percent}%`, '--stack': click.stackLevel }}
             >
               <div className="marker-dot"></div>
               <div className="marker-label">

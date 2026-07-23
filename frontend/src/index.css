@@ -312,7 +312,7 @@ body {
 .marker {
   position: absolute;
   width: 2px;
-  height: 20px;
+  height: calc(20px + var(--stack, 0) * 35px);
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
@@ -359,8 +359,8 @@ body {
   pointer-events: none;
   animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.top-marker .marker-label { bottom: 25px; border: 1px solid rgba(16, 185, 129, 0.3); }
-.bottom-marker .marker-label { top: 25px; border: 1px solid rgba(239, 68, 68, 0.3); }
+.top-marker .marker-label { bottom: calc(25px + var(--stack, 0) * 35px); border: 1px solid rgba(16, 185, 129, 0.3); }
+.bottom-marker .marker-label { top: calc(25px + var(--stack, 0) * 35px); border: 1px solid rgba(239, 68, 68, 0.3); }
 .marker-name { font-weight: 600; }
 .marker-val.plus { color: var(--color-plus); }
 .marker-val.minus { color: var(--color-minus); }
