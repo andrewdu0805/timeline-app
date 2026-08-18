@@ -59,17 +59,17 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
   }
 
   // Pre-calculate stack levels for collision detection
-  const placedTop = [];
-  const placedBottom = [];
+  const placedLeft = [];
+  const placedRight = [];
 
   const clicksWithStacks = state.clicks.map(click => {
     const percent = (click.exactMs / totalMs) * 100;
-    const isTop = click.val === 1;
-    const placed = isTop ? placedTop : placedBottom;
+    const isPlus = click.val === 1;
+    const placed = isPlus ? placedLeft : placedRight;
     
     let maxStack = -1;
     placed.forEach(p => {
-      // If within 1.5% of timeline width, they collide
+      // If within 1.5% of timeline height, they collide
       if (Math.abs(p.percent - percent) < 1.5) {
         maxStack = Math.max(maxStack, p.stackLevel);
       }
@@ -84,19 +84,19 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
   return (
     <div className="timeline-wrapper" ref={containerRef}>
       
-      {/* Top Area (+1) */}
+      {/* Left Area (+1) */}
       <div 
-        className={`interaction-area top ${!isHost && state.status === 'running' ? 'active' : ''}`}
+        className={`interaction-area left-area ${!isHost && state.status === 'running' ? 'active' : ''}`}
         onClick={() => handleAreaClick(1)}
       >
-        {!isHost && state.status === 'running' && <div className="area-hint">Click Here (+1)</div>}
+        {!isHost && state.status === 'running' && <div className="area-hint">Click (+1)</div>}
       </div>
 
       {/* The Central Timeline Bar */}
       <div className="timeline-track">
         <div 
           className="timeline-fill" 
-          style={{ width: `${progressPercent}%` }}
+          style={{ height: `${progressPercent}%` }}
         >
            <div className="timeline-glow-head"></div>
         </div>
@@ -106,7 +106,7 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
           <div 
             key={`tick-${i}`} 
             className={`timeline-tick ${tick.isMajor ? 'major-tick' : 'minor-tick'}`}
-            style={{ left: `${tick.percent}%` }}
+            style={{ top: `${tick.percent}%` }}
           >
             {tick.isMajor && (
               <span className="tick-label">{tick.minute}m</span>
@@ -116,20 +116,20 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
         
         {/* Render Clicks as Markers */}
         {clicksWithStacks.map((click, i) => {
-          const isTop = click.val === 1;
+          const isPlus = click.val === 1;
           const isMe = click.name === guestName;
           
           return (
             <div 
               key={i} 
-              className={`marker ${isTop ? 'top-marker' : 'bottom-marker'} ${isMe ? 'my-marker' : ''}`}
-              style={{ left: `${click.percent}%`, '--stack': click.stackLevel }}
+              className={`marker ${isPlus ? 'left-marker' : 'right-marker'} ${isMe ? 'my-marker' : ''}`}
+              style={{ top: `${click.percent}%`, '--stack': click.stackLevel }}
             >
               <div className="marker-dot"></div>
               <div className="marker-label">
                 <span className="marker-name">{click.name}</span>
-                <span className={`marker-val ${isTop ? 'plus' : 'minus'}`}>
-                  {isTop ? '+1' : '-1'}
+                <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
+                  {isPlus ? '+1' : '-1'}
                 </span>
               </div>
             </div>
@@ -137,15 +137,15 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
         })}
       </div>
 
-      {/* Bottom Area (-1) */}
+      {/* Right Area (-1) */}
       <div 
-        className={`interaction-area bottom ${!isHost && state.status === 'running' ? 'active' : ''}`}
+        className={`interaction-area right-area ${!isHost && state.status === 'running' ? 'active' : ''}`}
         onClick={() => handleAreaClick(-1)}
       >
-        {!isHost && state.status === 'running' && <div className="area-hint">Click Here (-1)</div>}
+        {!isHost && state.status === 'running' && <div className="area-hint">Click (-1)</div>}
       </div>
       
-      {/* Time display at the bottom center */}
+      {/* Time display */}
       <div className="timeline-clock glass-panel">
          {formatTime(localTimeMs)} / {state.durationMinutes}:00
       </div>

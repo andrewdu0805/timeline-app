@@ -222,7 +222,7 @@ body {
 .timeline-wrapper {
   flex: 1;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   position: relative;
   min-height: 400px;
 }
@@ -247,31 +247,34 @@ body {
   color: var(--text-secondary);
   pointer-events: none;
   transition: opacity 0.3s;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
 }
 .interaction-area.active:hover .area-hint {
   opacity: 0.6;
 }
 
 .timeline-track {
-  height: 4px;
+  width: 4px;
   background: rgba(255, 255, 255, 0.1);
   position: relative;
-  width: 100%;
+  height: 100%;
   border-radius: 2px;
 }
 .timeline-fill {
   position: absolute;
   top: 0;
   left: 0;
-  height: 100%;
+  width: 100%;
   background: var(--accent-primary);
   border-radius: 2px;
   box-shadow: 0 0 10px var(--accent-primary);
 }
 .timeline-glow-head {
   position: absolute;
-  right: -5px;
-  top: -3px;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 10px;
   height: 10px;
   background: #fff;
@@ -282,27 +285,27 @@ body {
 /* Ruler Ticks */
 .timeline-tick {
   position: absolute;
-  top: 0;
-  width: 2px;
+  left: 0;
+  height: 2px;
   background: var(--text-secondary);
-  transform: translateX(-50%);
+  transform: translateY(-50%);
   z-index: 5;
 }
 .minor-tick {
-  height: 8px;
-  top: -2px;
+  width: 8px;
+  left: -2px;
   opacity: 0.5;
 }
 .major-tick {
-  height: 16px;
-  top: -6px;
+  width: 16px;
+  left: -6px;
   background: var(--text-primary);
 }
 .tick-label {
   position: absolute;
-  top: -24px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: -35px;
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 0.7rem;
   color: var(--text-secondary);
   font-weight: 600;
@@ -311,23 +314,23 @@ body {
 /* Markers */
 .marker {
   position: absolute;
-  width: 2px;
-  height: calc(20px + var(--stack, 0) * 35px);
-  transform: translateX(-50%);
+  height: 2px;
+  width: calc(20px + var(--stack, 0) * 35px);
+  transform: translateY(-50%);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   z-index: 10;
 }
-.top-marker {
-  bottom: 100%;
+.left-marker {
+  right: 100%;
   background: var(--color-plus);
-  justify-content: flex-end;
-}
-.bottom-marker {
-  top: 100%;
-  background: var(--color-minus);
   justify-content: flex-start;
+}
+.right-marker {
+  left: 100%;
+  background: var(--color-minus);
+  justify-content: flex-end;
 }
 .marker-dot {
   width: 8px;
@@ -335,14 +338,14 @@ body {
   border-radius: 50%;
   position: absolute;
 }
-.top-marker .marker-dot {
+.left-marker .marker-dot {
   background: var(--color-plus);
-  bottom: -4px;
+  right: -4px;
   box-shadow: 0 0 8px var(--color-plus);
 }
-.bottom-marker .marker-dot {
+.right-marker .marker-dot {
   background: var(--color-minus);
-  top: -4px;
+  left: -4px;
   box-shadow: 0 0 8px var(--color-minus);
 }
 .marker-label {
@@ -359,8 +362,8 @@ body {
   pointer-events: none;
   animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.top-marker .marker-label { bottom: calc(25px + var(--stack, 0) * 35px); border: 1px solid rgba(16, 185, 129, 0.3); }
-.bottom-marker .marker-label { top: calc(25px + var(--stack, 0) * 35px); border: 1px solid rgba(239, 68, 68, 0.3); }
+.left-marker .marker-label { right: calc(25px + var(--stack, 0) * 35px); border: 1px solid rgba(16, 185, 129, 0.3); }
+.right-marker .marker-label { left: calc(25px + var(--stack, 0) * 35px); border: 1px solid rgba(239, 68, 68, 0.3); }
 .marker-name { font-weight: 600; }
 .marker-val.plus { color: var(--color-plus); }
 .marker-val.minus { color: var(--color-minus); }
@@ -369,9 +372,8 @@ body {
 /* Timeline Clock */
 .timeline-clock {
   position: absolute;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 1rem;
+  right: 1rem;
   padding: 0.5rem 1.5rem;
   border-radius: 20px;
   font-variant-numeric: tabular-nums;
@@ -483,11 +485,31 @@ body {
 .guest-screen {
   transition: background 0.3s;
 }
-.guest-screen.effect-top {
-  background: radial-gradient(circle at 50% 25%, rgba(16, 185, 129, 0.1), var(--bg-color) 60%);
+.guest-screen.effect-left {
+  background: radial-gradient(circle at 25% 50%, rgba(16, 185, 129, 0.1), var(--bg-color) 60%);
 }
-.guest-screen.effect-bottom {
-  background: radial-gradient(circle at 50% 75%, rgba(239, 68, 68, 0.1), var(--bg-color) 60%);
+.guest-screen.effect-right {
+  background: radial-gradient(circle at 75% 50%, rgba(239, 68, 68, 0.1), var(--bg-color) 60%);
+}
+
+/* Split Layout */
+.split-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  gap: 2rem;
+  min-height: 0;
+}
+.split-video-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.split-timeline-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 300px;
 }
 
 /* Responsive Styles */
@@ -497,14 +519,18 @@ body {
   .control-group { justify-content: space-between; }
   .area-hint { font-size: 1.5rem; }
   .marker-label { transform: scale(0.8); }
+  .split-layout { flex-direction: column; }
+  .split-timeline-pane { min-height: 60vh; }
+  .timeline-clock { top: auto; bottom: 1rem; right: auto; left: 50%; transform: translateX(-50%); }
 }
 
 /* Video Player */
 .video-player-container {
   width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: 40vh;
-  margin-bottom: 1rem;
+  max-height: 70vh;
+  max-width: 1000px;
+  margin: 0 auto 1rem auto;
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--panel-border);
@@ -515,6 +541,7 @@ body {
 .youtube-iframe iframe, .youtube-iframe {
   width: 100%;
   height: 100%;
+  pointer-events: none;
 }
 .video-player-placeholder {
   width: 100%;

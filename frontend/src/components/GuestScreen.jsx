@@ -24,14 +24,19 @@ const GuestScreen = ({ socket, state, guestName }) => {
         </div>
       </div>
 
-      <VideoPlayer videoId={state.videoId} state={state} />
-
-      <Timeline 
-        state={state} 
-        guestName={guestName} 
-        isHost={false} 
-        onGuestClick={handleGuestClick} 
-      />
+      <div className="split-layout">
+        <div className="split-video-pane">
+          <VideoPlayer videoId={state.videoId} state={state} />
+        </div>
+        <div className="split-timeline-pane">
+          <Timeline 
+            state={state} 
+            guestName={guestName} 
+            isHost={false} 
+            onGuestClick={handleGuestClick} 
+          />
+        </div>
+      </div>
     </div>
   );
 };

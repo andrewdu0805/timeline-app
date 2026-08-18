@@ -114,11 +114,16 @@ const HostScreen = ({ socket, state }) => {
         </div>
       </div>
       
-      {/* Video Player */}
-      <VideoPlayer videoId={state.videoId} state={state} />
-
-      {/* Timeline View for Host (Read Only) */}
-      <Timeline state={state} isHost={true} />
+      <div className="split-layout">
+        <div className="split-video-pane">
+          {/* Video Player */}
+          <VideoPlayer videoId={state.videoId} state={state} />
+        </div>
+        <div className="split-timeline-pane">
+          {/* Timeline View for Host (Read Only) */}
+          <Timeline state={state} isHost={true} />
+        </div>
+      </div>
       
     </div>
   );
