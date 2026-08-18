@@ -22,6 +22,7 @@ let state = {
   speed: 1, // 1, 2, 3
   elapsedTimeMs: 0,
   clicks: [], // { name, val, exactMs }
+  videoId: '', // YouTube video ID
 };
 
 let tickInterval = null;
@@ -63,6 +64,13 @@ io.on('connection', (socket) => {
   socket.emit('state_update', state);
 
   // Host Events
+  socket.on('set_video_id', (id) => {
+    if (state.status === 'idle') {
+      state.videoId = id;
+      broadcastState();
+    }
+  });
+
   socket.on('set_duration', (minutes) => {
     if (state.status === 'idle') {
       state.durationMinutes = Math.max(1, minutes);
@@ -98,7 +106,8 @@ io.on('connection', (socket) => {
       durationMinutes: state.durationMinutes,
       speed: 1,
       elapsedTimeMs: 0,
-      clicks: []
+      clicks: [],
+      videoId: state.videoId
     };
     if (tickInterval) clearInterval(tickInterval);
     broadcastState();

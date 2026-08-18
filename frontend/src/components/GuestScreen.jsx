@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Timeline from './Timeline';
+import VideoPlayer from './VideoPlayer';
 
 const GuestScreen = ({ socket, state, guestName }) => {
   const [clickEffect, setClickEffect] = useState(null);
@@ -22,6 +23,8 @@ const GuestScreen = ({ socket, state, guestName }) => {
             Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
         </div>
       </div>
+
+      <VideoPlayer videoId={state.videoId} state={state} />
 
       <Timeline 
         state={state} 

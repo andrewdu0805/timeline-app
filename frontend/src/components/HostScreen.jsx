@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
 import Timeline from './Timeline';
+import VideoPlayer from './VideoPlayer';
 
 const HostScreen = ({ socket, state }) => {
   const [durationInput, setDurationInput] = useState(state.durationMinutes);
+  const [videoUrlInput, setVideoUrlInput] = useState('');
 
   const handleSetDuration = () => {
     socket.emit('set_duration', Number(durationInput));
+  };
+
+  const handleSetVideo = () => {
+    // Extract video ID from URL or just use it directly
+    let id = videoUrlInput;
+    const match = videoUrlInput.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
+    if (match && match[1]) {
+      id = match[1];
+    }
+    socket.emit('set_video_id', id);
+    setVideoUrlInput(''); // clear input after setting
   };
 
   const handleStart = () => {
@@ -50,6 +63,26 @@ const HostScreen = ({ socket, state }) => {
           </div>
 
           <div className="control-group">
+            <label>YouTube Link/ID:</label>
+            <input 
+              type="text" 
+              value={videoUrlInput} 
+              onChange={(e) => setVideoUrlInput(e.target.value)} 
+              placeholder="e.g. dQw4w9WgXcQ or youtube url"
+              disabled={state.status !== 'idle'}
+              className="glass-input"
+              style={{ width: '200px' }}
+            />
+            <button 
+              className="btn btn-secondary" 
+              onClick={handleSetVideo}
+              disabled={state.status !== 'idle' || !videoUrlInput}
+            >
+              Set Video
+            </button>
+          </div>
+
+          <div className="control-group">
             <button 
               className="btn btn-primary start-btn" 
               onClick={handleStart}
@@ -81,6 +114,9 @@ const HostScreen = ({ socket, state }) => {
         </div>
       </div>
       
+      {/* Video Player */}
+      <VideoPlayer videoId={state.videoId} state={state} />
+
       {/* Timeline View for Host (Read Only) */}
       <Timeline state={state} isHost={true} />
       
