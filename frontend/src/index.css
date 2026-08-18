@@ -483,13 +483,13 @@ body {
 }
 
 /* Click Effects */
-.guest-screen {
+.screen-container {
   transition: background 0.3s;
 }
-.guest-screen.effect-left {
+.screen-container.effect-left {
   background: radial-gradient(circle at 25% 50%, rgba(16, 185, 129, 0.1), var(--bg-color) 60%);
 }
-.guest-screen.effect-right {
+.screen-container.effect-right {
   background: radial-gradient(circle at 75% 50%, rgba(239, 68, 68, 0.1), var(--bg-color) 60%);
 }
 

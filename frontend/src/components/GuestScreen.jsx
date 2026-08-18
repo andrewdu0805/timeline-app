@@ -9,7 +9,7 @@ const GuestScreen = ({ socket, state, guestName }) => {
     socket.emit('register_click', { name: guestName, val });
     
     // Trigger visual effect
-    setClickEffect(val === 1 ? 'effect-top' : 'effect-bottom');
+    setClickEffect(val === 1 ? 'effect-left' : 'effect-right');
     setTimeout(() => setClickEffect(null), 300);
   };
 
@@ -33,7 +33,7 @@ const GuestScreen = ({ socket, state, guestName }) => {
             state={state} 
             guestName={guestName} 
             isHost={false} 
-            onGuestClick={handleGuestClick} 
+            onTimelineClick={handleGuestClick} 
           />
         </div>
       </div>

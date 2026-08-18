@@ -4,6 +4,7 @@ import VideoPlayer from './VideoPlayer';
 
 const HostScreen = ({ socket, state }) => {
   const [videoUrlInput, setVideoUrlInput] = useState('');
+  const [clickEffect, setClickEffect] = useState(null);
 
   const handleDurationReady = (durationSecs) => {
     const mins = Math.ceil(durationSecs / 60);
@@ -47,8 +48,16 @@ const HostScreen = ({ socket, state }) => {
     socket.emit('reset');
   };
 
+  const handleHostClick = (val) => {
+    socket.emit('register_click', { name: 'Host', val });
+    
+    // Trigger visual effect
+    setClickEffect(val === 1 ? 'effect-left' : 'effect-right');
+    setTimeout(() => setClickEffect(null), 300);
+  };
+
   return (
-    <div className="screen-container host-screen">
+    <div className={`screen-container host-screen ${clickEffect || ''}`}>
       <div className="host-dashboard glass-panel" style={{ padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
         <h2 style={{ fontSize: '1.2rem', margin: 0, minWidth: '150px' }}>Host Control Panel</h2>
         
@@ -106,8 +115,8 @@ const HostScreen = ({ socket, state }) => {
           <VideoPlayer videoId={state.videoId} state={state} onDurationReady={handleDurationReady} />
         </div>
         <div className="split-timeline-pane">
-          {/* Timeline View for Host (Read Only) */}
-          <Timeline state={state} isHost={true} />
+          {/* Timeline View for Host */}
+          <Timeline state={state} guestName="Host" isHost={true} onTimelineClick={handleHostClick} />
         </div>
       </div>
       

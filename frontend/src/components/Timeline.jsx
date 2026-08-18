@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 
-const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
+const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
   const containerRef = useRef(null);
   const [localTimeMs, setLocalTimeMs] = useState(state.elapsedTimeMs);
 
@@ -37,8 +37,8 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
   }, [state.elapsedTimeMs, state.status, state.speed, totalMs]);
 
   const handleAreaClick = (val) => {
-    if (!isHost && state.status === 'running' && onGuestClick) {
-      onGuestClick(val);
+    if (state.status === 'running' && onTimelineClick) {
+      onTimelineClick(val);
     }
   };
 
@@ -86,10 +86,10 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
       
       {/* Left Area (+1) */}
       <div 
-        className={`interaction-area left-area ${!isHost && state.status === 'running' ? 'active' : ''}`}
+        className={`interaction-area left-area ${state.status === 'running' && onTimelineClick ? 'active' : ''}`}
         onClick={() => handleAreaClick(1)}
       >
-        {!isHost && state.status === 'running' && <div className="area-hint">Click (+1)</div>}
+        {state.status === 'running' && onTimelineClick && <div className="area-hint">Click (+1)</div>}
       </div>
 
       {/* The Central Timeline Bar */}
@@ -139,10 +139,10 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
 
       {/* Right Area (-1) */}
       <div 
-        className={`interaction-area right-area ${!isHost && state.status === 'running' ? 'active' : ''}`}
+        className={`interaction-area right-area ${state.status === 'running' && onTimelineClick ? 'active' : ''}`}
         onClick={() => handleAreaClick(-1)}
       >
-        {!isHost && state.status === 'running' && <div className="area-hint">Click (-1)</div>}
+        {state.status === 'running' && onTimelineClick && <div className="area-hint">Click (-1)</div>}
       </div>
       
       {/* Time display */}
