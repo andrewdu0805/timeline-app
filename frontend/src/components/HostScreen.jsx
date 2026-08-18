@@ -90,7 +90,7 @@ const HostScreen = ({ socket, state }) => {
 
         <div className="control-group speed-controls">
           <label>Speed:</label>
-          {[1, 2, 3].map(s => (
+          {[1, 1.5, 2].map(s => (
             <button key={s} className={`btn btn-speed ${state.speed === s ? 'active' : ''}`} style={{ padding: '0.4rem 0.8rem' }} onClick={() => handleSetSpeed(s)} disabled={state.status === 'finished'}>{s}x</button>
           ))}
         </div>
