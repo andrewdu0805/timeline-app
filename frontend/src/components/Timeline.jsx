@@ -126,7 +126,7 @@ const Timeline = ({ state, guestName, isHost, onGuestClick }) => {
               style={{ top: `${click.percent}%`, '--stack': click.stackLevel }}
             >
               <div className="marker-dot"></div>
-              <div className="marker-label">
+              <div className="marker-label" title={`Time: ${formatTime(click.exactMs)}`}>
                 <span className="marker-name">{click.name}</span>
                 <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
                   {isPlus ? '+1' : '-1'}

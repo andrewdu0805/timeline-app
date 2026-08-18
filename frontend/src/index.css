@@ -359,7 +359,8 @@ body {
   font-size: 0.75rem;
   white-space: nowrap;
   backdrop-filter: blur(4px);
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: help;
   animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 .left-marker .marker-label { right: calc(15px + var(--stack, 0) * 12px); border: 1px solid rgba(16, 185, 129, 0.3); }
