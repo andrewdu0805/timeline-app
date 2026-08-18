@@ -17,7 +17,7 @@ const io = new Server(server, {
 
 // App State
 let state = {
-  status: 'idle', // idle, running, finished
+  status: 'idle', // idle, running, paused, finished
   durationMinutes: 120, // default
   speed: 1, // 1, 2, 3
   elapsedTimeMs: 0,
@@ -86,8 +86,51 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('pause_timeline', () => {
+    if (state.status === 'running') {
+      state.status = 'paused';
+      // calculate exact time at pause
+      const now = Date.now();
+      const delta = now - lastTickTime;
+      state.elapsedTimeMs += delta * state.speed;
+      if (tickInterval) clearInterval(tickInterval);
+      broadcastState();
+    }
+  });
+
+  socket.on('resume_timeline', () => {
+    if (state.status === 'paused') {
+      state.status = 'running';
+      startTick();
+      broadcastState();
+    }
+  });
+
+  socket.on('seek_timeline', (offsetMs) => {
+    if (state.status !== 'idle') {
+      // update exact time first
+      if (state.status === 'running') {
+        const now = Date.now();
+        const delta = now - lastTickTime;
+        state.elapsedTimeMs += delta * state.speed;
+        lastTickTime = now;
+      }
+      
+      state.elapsedTimeMs = Math.max(0, state.elapsedTimeMs + offsetMs);
+      const maxMs = state.durationMinutes * 60 * 1000;
+      if (state.elapsedTimeMs >= maxMs) {
+         state.elapsedTimeMs = maxMs;
+         if (state.status === 'running') {
+           state.status = 'finished';
+           if (tickInterval) clearInterval(tickInterval);
+         }
+      }
+      broadcastState();
+    }
+  });
+
   socket.on('set_speed', (speed) => {
-    if (state.status === 'running' || state.status === 'idle') {
+    if (state.status === 'running' || state.status === 'idle' || state.status === 'paused') {
       state.speed = speed;
       // also calculate intermediate elapsed time accurately if running
       if (state.status === 'running') {

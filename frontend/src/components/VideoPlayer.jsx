@@ -1,13 +1,28 @@
 import React, { useRef, useEffect } from 'react';
 import YouTube from 'react-youtube';
 
-const VideoPlayer = ({ videoId, state }) => {
+const VideoPlayer = ({ videoId, state, onDurationReady }) => {
   const playerRef = useRef(null);
   const latestTimeRef = useRef(state.elapsedTimeMs);
+  const durationReportedRef = useRef(false);
 
   useEffect(() => {
     latestTimeRef.current = state.elapsedTimeMs;
+    // If paused and host seeks, update the video frame
+    if (state.status === 'paused' && playerRef.current) {
+        const player = playerRef.current;
+        const currentVideoTime = player.getCurrentTime() || 0;
+        const expectedTime = state.elapsedTimeMs / 1000;
+        if (Math.abs(currentVideoTime - expectedTime) > 1) {
+            player.seekTo(expectedTime, true);
+        }
+    }
   }, [state.elapsedTimeMs]);
+
+  // Reset duration reported flag when video changes
+  useEffect(() => {
+    durationReportedRef.current = false;
+  }, [videoId]);
 
   const syncPlayer = () => {
     if (!playerRef.current || !videoId) return;
@@ -28,6 +43,10 @@ const VideoPlayer = ({ videoId, state }) => {
       } else if (state.status === 'idle') {
         player.seekTo(0, true);
         player.pauseVideo();
+      } else if (state.status === 'paused') {
+        const expectedTime = latestTimeRef.current / 1000;
+        player.seekTo(expectedTime, true);
+        player.pauseVideo();
       } else if (state.status === 'finished') {
         player.pauseVideo();
       }
@@ -39,6 +58,21 @@ const VideoPlayer = ({ videoId, state }) => {
   const onReady = (event) => {
     playerRef.current = event.target;
     syncPlayer();
+    checkDuration();
+  };
+
+  const checkDuration = () => {
+    if (onDurationReady && playerRef.current && !durationReportedRef.current) {
+      const d = playerRef.current.getDuration();
+      if (d > 0) {
+        onDurationReady(d);
+        durationReportedRef.current = true;
+      }
+    }
+  };
+
+  const onStateChange = (event) => {
+    checkDuration();
   };
 
   // Sync on major state changes
@@ -53,6 +87,8 @@ const VideoPlayer = ({ videoId, state }) => {
          const expectedTime = latestTimeRef.current / 1000;
          const player = playerRef.current;
          try {
+           player.setPlaybackRate(state.speed); // aggressively sync speed
+           
            const currentVideoTime = player.getCurrentTime() || 0;
            // If we drift by more than 2 seconds, force a sync
            if (Math.abs(currentVideoTime - expectedTime) > 2) {
@@ -91,6 +127,7 @@ const VideoPlayer = ({ videoId, state }) => {
         videoId={videoId} 
         opts={opts} 
         onReady={onReady} 
+        onStateChange={onStateChange}
         className="youtube-iframe"
       />
     </div>

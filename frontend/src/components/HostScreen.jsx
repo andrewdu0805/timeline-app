@@ -3,11 +3,13 @@ import Timeline from './Timeline';
 import VideoPlayer from './VideoPlayer';
 
 const HostScreen = ({ socket, state }) => {
-  const [durationInput, setDurationInput] = useState(state.durationMinutes);
   const [videoUrlInput, setVideoUrlInput] = useState('');
 
-  const handleSetDuration = () => {
-    socket.emit('set_duration', Number(durationInput));
+  const handleDurationReady = (durationSecs) => {
+    const mins = Math.ceil(durationSecs / 60);
+    if (state.durationMinutes !== mins) {
+      socket.emit('set_duration', mins);
+    }
   };
 
   const handleSetVideo = () => {
@@ -25,6 +27,18 @@ const HostScreen = ({ socket, state }) => {
     socket.emit('start_timeline');
   };
 
+  const handlePause = () => {
+    socket.emit('pause_timeline');
+  };
+
+  const handleResume = () => {
+    socket.emit('resume_timeline');
+  };
+
+  const handleSeek = (ms) => {
+    socket.emit('seek_timeline', ms);
+  };
+
   const handleSetSpeed = (s) => {
     socket.emit('set_speed', s);
   };
@@ -39,16 +53,8 @@ const HostScreen = ({ socket, state }) => {
         <h2 style={{ fontSize: '1.2rem', margin: 0, minWidth: '150px' }}>Host Control Panel</h2>
         
         <div className="control-group">
-          <label>Duration (mins):</label>
-          <input 
-            type="number" 
-            value={durationInput} 
-            onChange={(e) => setDurationInput(e.target.value)} 
-            disabled={state.status !== 'idle'}
-            className="glass-input small-input"
-            style={{ padding: '0.4rem 0.5rem' }}
-          />
-          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem' }} onClick={handleSetDuration} disabled={state.status !== 'idle'}>Set</button>
+          <label>Duration:</label>
+          <span style={{ fontWeight: 'bold', minWidth: '40px' }}>{state.durationMinutes}m</span>
         </div>
 
         <div className="control-group">
@@ -66,7 +72,19 @@ const HostScreen = ({ socket, state }) => {
         </div>
 
         <div className="control-group">
-          <button className="btn btn-primary start-btn" style={{ padding: '0.4rem 1rem' }} onClick={handleStart} disabled={state.status !== 'idle'}>Start Timeline</button>
+          {state.status === 'idle' && (
+             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem' }} onClick={handleStart}>Start Timeline</button>
+          )}
+          {state.status === 'running' && (
+             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#f59e0b' }} onClick={handlePause}>Pause</button>
+          )}
+          {state.status === 'paused' && (
+             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#10b981' }} onClick={handleResume}>Resume</button>
+          )}
+          
+          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(-10000)} disabled={state.status === 'idle' || state.status === 'finished'}>-10s</button>
+          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10s</button>
+
           <button className="btn btn-danger" style={{ padding: '0.4rem 1rem' }} onClick={handleReset}>Reset</button>
         </div>
 
@@ -85,7 +103,7 @@ const HostScreen = ({ socket, state }) => {
       <div className="split-layout">
         <div className="split-video-pane">
           {/* Video Player */}
-          <VideoPlayer videoId={state.videoId} state={state} />
+          <VideoPlayer videoId={state.videoId} state={state} onDurationReady={handleDurationReady} />
         </div>
         <div className="split-timeline-pane">
           {/* Timeline View for Host (Read Only) */}
