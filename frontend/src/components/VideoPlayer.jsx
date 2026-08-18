@@ -36,7 +36,7 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
         const currentVideoTime = player.getCurrentTime() || 0;
         const expectedTime = latestTimeRef.current / 1000;
         
-        if (Math.abs(currentVideoTime - expectedTime) > 2) {
+        if (Math.abs(currentVideoTime - expectedTime) > 5) {
           player.seekTo(expectedTime, true);
         }
         player.playVideo();
@@ -90,8 +90,8 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
            player.setPlaybackRate(state.speed); // aggressively sync speed
            
            const currentVideoTime = player.getCurrentTime() || 0;
-           // If we drift by more than 2 seconds, force a sync
-           if (Math.abs(currentVideoTime - expectedTime) > 2) {
+           // If we drift by more than 5 seconds, force a sync
+           if (Math.abs(currentVideoTime - expectedTime) > 5) {
              player.seekTo(expectedTime, true);
              player.playVideo();
            }

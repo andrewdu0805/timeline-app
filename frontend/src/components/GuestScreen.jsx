@@ -13,13 +13,29 @@ const GuestScreen = ({ socket, state, guestName }) => {
     setTimeout(() => setClickEffect(null), 300);
   };
 
+  const handlePause = () => socket.emit('pause_timeline');
+  const handleResume = () => socket.emit('resume_timeline');
+  const handleSeek = (ms) => socket.emit('seek_timeline', ms);
+
   return (
     <div className={`screen-container guest-screen ${clickEffect || ''}`}>
-      <div className="guest-header glass-panel">
-        <div className="user-info">
+      <div className="guest-header glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className="user-info" style={{ marginRight: 'auto' }}>
           Guest: <span>{guestName}</span>
         </div>
-        <div className="status-badge">
+
+        <div className="control-group">
+          {state.status === 'running' && (
+             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#f59e0b' }} onClick={handlePause}>Pause</button>
+          )}
+          {state.status === 'paused' && (
+             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#10b981' }} onClick={handleResume}>Resume</button>
+          )}
+          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(-10000)} disabled={state.status === 'idle' || state.status === 'finished'}>-10s</button>
+          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10s</button>
+        </div>
+
+        <div className="status-badge" style={{ marginLeft: '1rem' }}>
             Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
         </div>
       </div>
