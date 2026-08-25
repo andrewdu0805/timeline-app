@@ -225,7 +225,6 @@ body {
   flex-direction: row;
   position: relative;
   min-height: 400px;
-  padding: 20px 0; /* Safe area for markers */
 }
 .interaction-area {
   flex: 1;
@@ -258,10 +257,13 @@ body {
 .timeline-track {
   width: 4px;
   background: rgba(255, 255, 255, 0.1);
-  position: relative;
-  height: 100%;
-  margin: 0 auto;
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   border-radius: 2px;
+  z-index: 5;
 }
 .timeline-fill {
   position: absolute;
