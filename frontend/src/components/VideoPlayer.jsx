@@ -7,17 +7,24 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
   const durationReportedRef = useRef(false);
 
   useEffect(() => {
+    const diff = Math.abs(state.elapsedTimeMs - latestTimeRef.current);
     latestTimeRef.current = state.elapsedTimeMs;
-    // If paused and host seeks, update the video frame
-    if (state.status === 'paused' && playerRef.current) {
-        const player = playerRef.current;
-        const currentVideoTime = player.getCurrentTime() || 0;
-        const expectedTime = state.elapsedTimeMs / 1000;
-        if (Math.abs(currentVideoTime - expectedTime) > 1) {
-            player.seekTo(expectedTime, true);
+    
+    if (playerRef.current) {
+        // If there is a massive jump (e.g. host clicked +/- 10s), force seek immediately
+        if (diff > 3000) {
+            playerRef.current.seekTo(state.elapsedTimeMs / 1000, true);
+        }
+        // If paused and drifting (e.g. someone sought while paused), update frame
+        else if (state.status === 'paused') {
+            const currentVideoTime = playerRef.current.getCurrentTime() || 0;
+            const expectedTime = state.elapsedTimeMs / 1000;
+            if (Math.abs(currentVideoTime - expectedTime) > 1) {
+                playerRef.current.seekTo(expectedTime, true);
+            }
         }
     }
-  }, [state.elapsedTimeMs]);
+  }, [state.elapsedTimeMs, state.status]);
 
   // Reset duration reported flag when video changes
   useEffect(() => {
@@ -36,7 +43,7 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
         const currentVideoTime = player.getCurrentTime() || 0;
         const expectedTime = latestTimeRef.current / 1000;
         
-        if (Math.abs(currentVideoTime - expectedTime) > 5) {
+        if (Math.abs(currentVideoTime - expectedTime) > 10) {
           player.seekTo(expectedTime, true);
         }
         player.playVideo();
@@ -80,7 +87,7 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
     syncPlayer();
   }, [state.status, state.speed, videoId]);
 
-  // Periodic check to prevent drifting (e.g. if video buffers)
+  // Periodic check to prevent drifting (e.g. if video lags)
   useEffect(() => {
     const interval = setInterval(() => {
       if (state.status === 'running' && playerRef.current) {
@@ -89,17 +96,25 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
          try {
            player.setPlaybackRate(state.speed); // aggressively sync speed
            
+           // If the player is currently buffering (3), DO NOT interrupt it to seek, 
+           // as that will just restart the buffering and create a loop!
+           const pState = player.getPlayerState();
+           if (pState === 3) return;
+
            const currentVideoTime = player.getCurrentTime() || 0;
-           // If we drift by more than 5 seconds, force a sync
-           if (Math.abs(currentVideoTime - expectedTime) > 5) {
+           // 10 second drift tolerance for network lags
+           if (Math.abs(currentVideoTime - expectedTime) > 10) {
              player.seekTo(expectedTime, true);
+             player.playVideo();
+           } else if (pState !== 1) {
+             // If it somehow paused or stopped but shouldn't have
              player.playVideo();
            }
          } catch(e) {}
       }
-    }, 2000);
+    }, 5000); // Check every 5 seconds
     return () => clearInterval(interval);
-  }, [state.status]);
+  }, [state.status, state.speed]);
 
   const opts = {
     height: '100%',
