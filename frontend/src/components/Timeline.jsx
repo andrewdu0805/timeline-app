@@ -137,6 +137,9 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
                 <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
                   {isPlus ? '+1' : '-1'}
                 </span>
+                <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>
+                  {formatTime(click.exactMs)}
+                </span>
               </div>
             </div>
           );

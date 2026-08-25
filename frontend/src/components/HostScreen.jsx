@@ -59,7 +59,7 @@ const HostScreen = ({ socket, state }) => {
 
   return (
     <div className={`screen-container host-screen ${clickEffect || ''}`}>
-      <div className="host-dashboard glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', gap: '0.5rem', alignItems: 'center', whiteSpace: 'nowrap' }}>
+      <div className="host-dashboard glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
         <h2 style={{ fontSize: '1.1rem', margin: 0, marginRight: '0.5rem' }}>Host Control Panel</h2>
         
         <div className="control-group">

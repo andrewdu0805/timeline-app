@@ -22,7 +22,7 @@ const GuestScreen = ({ socket, state, guestName }) => {
 
   return (
     <div className={`screen-container guest-screen ${clickEffect || ''}`}>
-      <div className="guest-header glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', gap: '0.5rem', alignItems: 'center', whiteSpace: 'nowrap' }}>
+      <div className="guest-header glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
         <div className="user-info" style={{ marginRight: '0.5rem' }}>
           Guest: <span>{guestName}</span>
         </div>
