@@ -40,18 +40,36 @@ const SummaryScreen = ({ state, onReset, role }) => {
   };
 
   const handleDownloadCSV = () => {
+    // Find the maximum number of history events any user has to generate dynamic columns
+    const maxHistory = Math.max(0, ...summary.map(u => u.history.length));
+    
     // Generate CSV Header
-    let csvContent = "Guest Name,Top Clicks (+1),Bottom Clicks (-1),Sum,Balanced,History (Time)\n";
+    let headerStr = "Guest Name,Top Clicks (+1),Bottom Clicks (-1),Sum,Balanced";
+    for (let i = 1; i <= maxHistory; i++) {
+      headerStr += `,Event ${i}`;
+    }
+    
+    // Add BOM (\uFEFF) for Excel UTF-8 support to fix Chinese encoding
+    let csvContent = "\uFEFF" + headerStr + "\n";
     
     // Add Rows
     summary.forEach(user => {
       const balanced = user.sum === 0 ? "Yes" : "No";
-      // Format history into a single string
-      const historyStr = user.history.map(h => `${h.val > 0 ? '+1' : '-1'}@${formatTime(h.exactMs)}`).join('; ');
-      // Escape commas and quotes in history
-      const escapedHistory = `"${historyStr.replace(/"/g, '""')}"`;
       
-      csvContent += `${user.name},${user.plus},${user.minus},${user.sum},${balanced},${escapedHistory}\n`;
+      // Escape name just in case it contains commas
+      let row = `"${user.name.replace(/"/g, '""')}",${user.plus},${user.minus},${user.sum},${balanced}`;
+      
+      // Add each history event to its own column
+      for (let i = 0; i < maxHistory; i++) {
+        if (i < user.history.length) {
+          const h = user.history[i];
+          row += `,"${h.val > 0 ? '+1' : h.val} @ ${formatTime(h.exactMs)}"`;
+        } else {
+          row += `,""`;
+        }
+      }
+      
+      csvContent += row + "\n";
     });
 
     // Create Blob and trigger download
