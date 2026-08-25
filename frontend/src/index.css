@@ -258,7 +258,8 @@ body {
   width: 4px;
   background: rgba(255, 255, 255, 0.1);
   position: relative;
-  height: 100%;
+  height: calc(100% - 40px); /* Leave 20px top and bottom margin */
+  margin: 20px auto;
   border-radius: 2px;
 }
 .timeline-fill {
@@ -315,7 +316,7 @@ body {
 .marker {
   position: absolute;
   height: 2px;
-  width: calc(10px + var(--stack, 0) * 12px);
+  width: calc(10px + var(--stack, 0) * 45px);
   transform: translateY(-50%);
   display: flex;
   flex-direction: row;
@@ -363,8 +364,8 @@ body {
   cursor: help;
   animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.left-marker .marker-label { right: calc(15px + var(--stack, 0) * 12px); border: 1px solid rgba(16, 185, 129, 0.3); }
-.right-marker .marker-label { left: calc(15px + var(--stack, 0) * 12px); border: 1px solid rgba(239, 68, 68, 0.3); }
+.left-marker .marker-label { right: calc(15px + var(--stack, 0) * 45px); border: 1px solid rgba(16, 185, 129, 0.3); }
+.right-marker .marker-label { left: calc(15px + var(--stack, 0) * 45px); border: 1px solid rgba(239, 68, 68, 0.3); }
 .marker-name { font-weight: 600; }
 .marker-val.plus { color: var(--color-plus); }
 .marker-val.minus { color: var(--color-minus); }
@@ -521,7 +522,7 @@ body {
   .area-hint { font-size: 1.5rem; }
   .marker-label { transform: scale(0.8); }
   .split-layout { flex-direction: column; }
-  .split-timeline-pane { flex: 1; min-height: 60vh; width: 100%; }
+  .split-timeline-pane { flex: 1; min-height: 60vh; width: 100%; overflow: visible; }
   .timeline-clock { top: auto; bottom: 1rem; right: auto; left: 50%; transform: translateX(-50%); }
 }
 
