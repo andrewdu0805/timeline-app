@@ -49,7 +49,7 @@ function App() {
 
   // Render logic based on role and status
   if (!role) {
-    return <LandingScreen setRole={setRole} setGuestName={setGuestName} />
+    return <LandingScreen socket={socket} setRole={setRole} setGuestName={setGuestName} />
   }
 
   if (gameState.status === 'finished') {

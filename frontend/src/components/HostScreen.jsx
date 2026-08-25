@@ -109,7 +109,28 @@ const HostScreen = ({ socket, state }) => {
           ))}
         </div>
 
-        <div className="status-badge" style={{ marginLeft: 'auto' }}>
+        {state.guests && state.guests.length > 0 && (
+          <div 
+            className="guest-summary" 
+            title={state.guests.map(g => `${g.name} (${g.device})`).join('\n')}
+            style={{ 
+              cursor: 'help', display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.1)', 
+              padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.9rem', marginLeft: 'auto',
+              border: '1px solid rgba(255,255,255,0.2)'
+            }}
+          >
+            <span>Guests: {state.guests.length}</span>
+            <span style={{opacity: 0.8}}>
+              ({[
+                state.guests.some(g => g.device === 'Desktop') ? `💻 ${state.guests.filter(g => g.device === 'Desktop').length}` : '',
+                state.guests.some(g => g.device === 'Mobile') ? `📱 ${state.guests.filter(g => g.device === 'Mobile').length}` : '',
+                state.guests.some(g => g.device === 'Tablet') ? `📟 ${state.guests.filter(g => g.device === 'Tablet').length}` : ''
+              ].filter(Boolean).join(', ')})
+            </span>
+          </div>
+        )}
+
+        <div className="status-badge" style={{ marginLeft: state.guests && state.guests.length > 0 ? '0' : 'auto' }}>
           Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
         </div>
       </div>

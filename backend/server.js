@@ -22,6 +22,7 @@ let state = {
   speed: 1, // 1, 2, 3
   elapsedTimeMs: 0,
   clicks: [], // { name, val, exactMs }
+  guests: [], // { id, name, device }
   videoId: '', // YouTube video ID
 };
 
@@ -150,6 +151,7 @@ io.on('connection', (socket) => {
       speed: 1,
       elapsedTimeMs: 0,
       clicks: [],
+      guests: state.guests, // Preserve connected guests!
       videoId: state.videoId
     };
     if (tickInterval) clearInterval(tickInterval);
@@ -157,6 +159,18 @@ io.on('connection', (socket) => {
   });
 
   // Guest Events
+  socket.on('join_as_guest', ({ name, device }) => {
+    // Remove if socket id already exists just in case
+    state.guests = state.guests.filter(g => g.id !== socket.id);
+    state.guests.push({ id: socket.id, name, device });
+    broadcastState();
+  });
+
+  socket.on('disconnect', () => {
+    state.guests = state.guests.filter(g => g.id !== socket.id);
+    broadcastState();
+  });
+
   socket.on('register_click', ({ name, val }) => {
     if (state.status === 'running') {
       // Calculate exact time based on current time plus small offset

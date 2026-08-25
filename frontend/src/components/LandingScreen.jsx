@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 
-const LandingScreen = ({ setRole, setGuestName }) => {
+const LandingScreen = ({ socket, setRole, setGuestName }) => {
   const [nameInput, setNameInput] = useState('');
+
+  const getDeviceType = () => {
+    const ua = navigator.userAgent;
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'Tablet';
+    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'Mobile';
+    return 'Desktop';
+  };
 
   const handleJoinGuest = (e) => {
     e.preventDefault();
-    if (nameInput.trim()) {
-      setGuestName(nameInput.trim());
+    const name = nameInput.trim();
+    if (name) {
+      setGuestName(name);
       setRole('guest');
+      if (socket) socket.emit('join_as_guest', { name, device: getDeviceType() });
     }
   };
 
