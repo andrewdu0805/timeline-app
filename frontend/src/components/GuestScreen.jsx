@@ -25,6 +25,10 @@ const GuestScreen = ({ socket, state, guestName }) => {
           Guest: <span>{guestName}</span>
         </div>
 
+        <div className="timeline-clock-header" style={{ fontWeight: 'bold', fontSize: '1.2rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '1px', padding: '0 0.5rem' }}>
+          {formatTime(localTimeMs)} / {state.durationMinutes}:00
+        </div>
+
         <div className="control-group">
           {state.status === 'running' && (
              <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#f59e0b' }} onClick={handlePause}>Pause</button>
@@ -36,14 +40,8 @@ const GuestScreen = ({ socket, state, guestName }) => {
           <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10s</button>
         </div>
 
-        <div style={{ flexBasis: '100%', height: 0 }}></div>
-        <div style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
-            <div className="timeline-clock-header" style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '1.5rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '2px' }}>
-              {formatTime(localTimeMs)} / {state.durationMinutes}:00
-            </div>
-            <div className="status-badge" style={{ marginLeft: 'auto' }}>
-              Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
-            </div>
+        <div className="status-badge" style={{ marginLeft: 'auto' }}>
+          Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
         </div>
       </div>
 
