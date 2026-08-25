@@ -64,52 +64,61 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
     });
   }
 
-  // Group rapid clicks to prevent UI spam
+  // 1. Group rapid clicks by SAME user (Spam prevention)
   const groupedClicks = [];
   const sortedClicks = [...state.clicks].sort((a, b) => a.exactMs - b.exactMs);
   
   sortedClicks.forEach(click => {
-    // Find the most recent group by this user for this side
-    const mergeWindowMs = 5000; // Group clicks within 5 seconds
+    const mergeWindowMs = 5000; // 5 seconds
     const lastGroup = [...groupedClicks].reverse().find(
       g => g.name === click.name && Math.sign(g.val) === Math.sign(click.val)
     );
-    
     if (lastGroup && (click.exactMs - lastGroup.lastExactMs) <= mergeWindowMs) {
-      // Merge into existing group
       lastGroup.val += click.val;
       lastGroup.lastExactMs = click.exactMs;
     } else {
-      // Start a new group
-      groupedClicks.push({
-        ...click,
-        lastExactMs: click.exactMs
-      });
+      groupedClicks.push({ ...click, lastExactMs: click.exactMs });
     }
   });
 
-  // Pre-calculate stack levels for collision detection on grouped clicks
-  const placedLeft = [];
-  const placedRight = [];
+  // 2. Cluster VISUALLY overlapping markers (prevent ANY overlap or horizontal pushing)
+  const leftClicks = groupedClicks.filter(c => c.val > 0);
+  const rightClicks = groupedClicks.filter(c => c.val < 0);
 
-  const clicksWithStacks = groupedClicks.map(click => {
-    const percent = (click.exactMs / totalMs) * 100;
-    const isPlus = click.val > 0;
-    const placed = isPlus ? placedLeft : placedRight;
-    
-    let maxStack = -1;
-    placed.forEach(p => {
-      // If within 1.5% of timeline height, they collide
-      if (Math.abs(p.percent - percent) < 1.5) {
-        maxStack = Math.max(maxStack, p.stackLevel);
+  const createVisualClusters = (clicks) => {
+    if (!clicks.length) return [];
+    // A label is ~40px. Assuming 600px tall timeline, 40/600 = ~6.6%.
+    // If timeline is 120 mins, 6.6% = ~8 mins.
+    // We use a fixed 6-minute window (360,000 ms) for clustering to guarantee no overlap.
+    const visualMergeWindowMs = 360000; 
+
+    const clusters = [];
+    let currentCluster = {
+      clicks: [clicks[0]],
+      exactMs: clicks[0].exactMs,
+      isMe: clicks[0].name === guestName
+    };
+
+    for (let i = 1; i < clicks.length; i++) {
+      const click = clicks[i];
+      if (click.exactMs - currentCluster.exactMs < visualMergeWindowMs) {
+        currentCluster.clicks.push(click);
+        if (click.name === guestName) currentCluster.isMe = true;
+      } else {
+        clusters.push(currentCluster);
+        currentCluster = { clicks: [click], exactMs: click.exactMs, isMe: click.name === guestName };
       }
-    });
-    
-    const stackLevel = maxStack + 1;
-    placed.push({ percent, stackLevel });
-    
-    return { ...click, percent, stackLevel };
-  });
+    }
+    clusters.push(currentCluster);
+    return clusters;
+  };
+
+  const leftClusters = createVisualClusters(leftClicks);
+  const rightClusters = createVisualClusters(rightClicks);
+  const allClusters = [
+    ...leftClusters.map(c => ({ ...c, isPlus: true })),
+    ...rightClusters.map(c => ({ ...c, isPlus: false }))
+  ];
 
   return (
     <div className="timeline-wrapper" ref={containerRef}>
@@ -144,28 +153,16 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
           </div>
         ))}
         
-        {/* Render Clicks as Markers */}
-        {clicksWithStacks.map((click, i) => {
-          const isPlus = click.val === 1;
-          const isMe = click.name === guestName;
-          
+        {/* Render Visual Clusters */}
+        {allClusters.map((cluster, i) => {
+          const percent = (cluster.exactMs / totalMs) * 100;
           return (
-            <div 
+            <ClusterNode 
               key={i} 
-              className={`marker ${isPlus ? 'left-marker' : 'right-marker'} ${isMe ? 'my-marker' : ''}`}
-              style={{ top: `${click.percent}%`, '--stack': click.stackLevel }}
-            >
-              <div className="marker-dot"></div>
-              <div className="marker-label" title={`Time: ${formatTime(click.exactMs)}`}>
-                <span className="marker-name">{click.name}</span>
-                <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
-                  {isPlus ? `+${click.val}` : click.val}
-                </span>
-                <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>
-                  {formatTime(click.exactMs)}
-                </span>
-              </div>
-            </div>
+              cluster={cluster} 
+              isPlus={cluster.isPlus} 
+              percent={percent} 
+            />
           );
         })}
       </div>
@@ -182,5 +179,67 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
   );
 };
 
-export default Timeline;
+const ClusterNode = ({ cluster, isPlus, percent }) => {
+  const [expanded, setExpanded] = useState(false);
 
+  const toggle = (e) => {
+    e.stopPropagation(); // prevent interaction-area click
+    setExpanded(!expanded);
+  };
+
+  const totalVal = cluster.clicks.reduce((sum, c) => sum + c.val, 0);
+  
+  return (
+    <div 
+      className={`marker ${isPlus ? 'left-marker' : 'right-marker'} ${cluster.isMe ? 'my-marker' : ''}`}
+      style={{ top: `${percent}%`, zIndex: expanded ? 100 : 10 }}
+    >
+      <div className="marker-dot"></div>
+      
+      {cluster.clicks.length === 1 && !expanded ? (
+        // Single Click View
+        <div className="marker-label" onClick={toggle} style={{ cursor: 'pointer' }}>
+          <span className="marker-name">{cluster.clicks[0].name}</span>
+          <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
+            {isPlus ? `+${cluster.clicks[0].val}` : cluster.clicks[0].val}
+          </span>
+          <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>
+            {formatTime(cluster.clicks[0].exactMs)}
+          </span>
+        </div>
+      ) : expanded ? (
+        // Expanded List View
+        <div className="marker-label expanded-cluster" onClick={toggle} style={{ cursor: 'pointer', minWidth: '120px' }}>
+          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', marginBottom: '4px', paddingBottom: '4px', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center' }}>
+            {cluster.clicks.length} Events (Close)
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '150px', overflowY: 'auto' }}>
+            {cluster.clicks.map((c, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                <span className="marker-name" style={{ fontSize: '0.75rem' }}>{c.name}</span>
+                <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '0.85rem' }}>
+                  {isPlus ? `+${c.val}` : c.val}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        // Collapsed Group View
+        <div className="marker-label cluster-summary" onClick={toggle} style={{ cursor: 'pointer', border: isPlus ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(239, 68, 68, 0.5)', background: 'rgba(0,0,0,0.8)' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '0.75rem', color: isPlus ? 'var(--color-plus)' : 'var(--color-minus)' }}>
+            {cluster.clicks.length} Users
+          </span>
+          <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '1rem', marginTop: '2px' }}>
+            {totalVal > 0 ? `+${totalVal}` : totalVal}
+          </span>
+          <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>
+            {formatTime(cluster.exactMs)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Timeline;
