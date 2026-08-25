@@ -225,6 +225,7 @@ body {
   flex-direction: row;
   position: relative;
   min-height: 400px;
+  padding: 20px 0; /* Safe area for markers */
 }
 .interaction-area {
   flex: 1;
@@ -258,8 +259,8 @@ body {
   width: 4px;
   background: rgba(255, 255, 255, 0.1);
   position: relative;
-  height: calc(100% - 40px); /* Leave 20px top and bottom margin */
-  margin: 20px auto;
+  height: 100%;
+  margin: 0 auto;
   border-radius: 2px;
 }
 .timeline-fill {
