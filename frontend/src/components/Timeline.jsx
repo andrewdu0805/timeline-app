@@ -64,13 +64,37 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
     });
   }
 
-  // Pre-calculate stack levels for collision detection
+  // Group rapid clicks to prevent UI spam
+  const groupedClicks = [];
+  const sortedClicks = [...state.clicks].sort((a, b) => a.exactMs - b.exactMs);
+  
+  sortedClicks.forEach(click => {
+    // Find the most recent group by this user for this side
+    const mergeWindowMs = 5000; // Group clicks within 5 seconds
+    const lastGroup = [...groupedClicks].reverse().find(
+      g => g.name === click.name && Math.sign(g.val) === Math.sign(click.val)
+    );
+    
+    if (lastGroup && (click.exactMs - lastGroup.lastExactMs) <= mergeWindowMs) {
+      // Merge into existing group
+      lastGroup.val += click.val;
+      lastGroup.lastExactMs = click.exactMs;
+    } else {
+      // Start a new group
+      groupedClicks.push({
+        ...click,
+        lastExactMs: click.exactMs
+      });
+    }
+  });
+
+  // Pre-calculate stack levels for collision detection on grouped clicks
   const placedLeft = [];
   const placedRight = [];
 
-  const clicksWithStacks = state.clicks.map(click => {
+  const clicksWithStacks = groupedClicks.map(click => {
     const percent = (click.exactMs / totalMs) * 100;
-    const isPlus = click.val === 1;
+    const isPlus = click.val > 0;
     const placed = isPlus ? placedLeft : placedRight;
     
     let maxStack = -1;
@@ -135,7 +159,7 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
               <div className="marker-label" title={`Time: ${formatTime(click.exactMs)}`}>
                 <span className="marker-name">{click.name}</span>
                 <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
-                  {isPlus ? '+1' : '-1'}
+                  {isPlus ? `+${click.val}` : click.val}
                 </span>
                 <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>
                   {formatTime(click.exactMs)}
