@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
 
-const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
-  const containerRef = useRef(null);
+export const formatTime = (ms) => {
+  const totalSeconds = Math.floor(ms / 1000);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
+
+export const useLocalTime = (state) => {
   const [localTimeMs, setLocalTimeMs] = useState(state.elapsedTimeMs);
-
   const totalMs = state.durationMinutes * 60 * 1000;
-  const progressPercent = Math.min((localTimeMs / totalMs) * 100, 100);
 
-  // Interpolate time locally for smooth animation between server ticks
   useEffect(() => {
     setLocalTimeMs(state.elapsedTimeMs);
     let animationFrameId;
@@ -24,7 +27,7 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
           return Math.min(next, totalMs);
         });
       } else {
-        lastUpdate = Date.now(); // keep it fresh
+        lastUpdate = Date.now();
       }
       animationFrameId = requestAnimationFrame(animate);
     };
@@ -36,17 +39,20 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
     return () => cancelAnimationFrame(animationFrameId);
   }, [state.elapsedTimeMs, state.status, state.speed, totalMs]);
 
+  return localTimeMs;
+};
+
+const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
+  const containerRef = useRef(null);
+  const localTimeMs = useLocalTime(state);
+
+  const totalMs = state.durationMinutes * 60 * 1000;
+  const progressPercent = Math.min((localTimeMs / totalMs) * 100, 100);
+
   const handleAreaClick = (val) => {
     if (state.status === 'running' && onTimelineClick) {
       onTimelineClick(val);
     }
-  };
-
-  const formatTime = (ms) => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const m = Math.floor(totalSeconds / 60);
-    const s = totalSeconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
   const ticks = [];
@@ -145,12 +151,9 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
         {state.status === 'running' && onTimelineClick && <div className="area-hint">Click (-1)</div>}
       </div>
       
-      {/* Time display */}
-      <div className="timeline-clock glass-panel">
-         {formatTime(localTimeMs)} / {state.durationMinutes}:00
-      </div>
     </div>
   );
 };
 
 export default Timeline;
+

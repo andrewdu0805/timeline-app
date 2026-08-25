@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import Timeline from './Timeline';
+import { useLocalTime, formatTime } from './Timeline';
 import VideoPlayer from './VideoPlayer';
 
 const GuestScreen = ({ socket, state, guestName }) => {
   const [clickEffect, setClickEffect] = useState(null);
+  const localTimeMs = useLocalTime(state);
 
   const handleGuestClick = (val) => {
     socket.emit('register_click', { name: guestName, val });
@@ -33,6 +34,10 @@ const GuestScreen = ({ socket, state, guestName }) => {
           )}
           <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(-10000)} disabled={state.status === 'idle' || state.status === 'finished'}>-10s</button>
           <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10s</button>
+        </div>
+
+        <div className="timeline-clock-header" style={{ marginLeft: '1rem', fontWeight: 'bold', fontSize: '1.2rem', fontFamily: 'monospace', color: 'var(--accent-primary)' }}>
+          {formatTime(localTimeMs)} / {state.durationMinutes}:00
         </div>
 
         <div className="status-badge" style={{ marginLeft: '1rem' }}>

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import Timeline from './Timeline';
+import { useLocalTime, formatTime } from './Timeline';
 import VideoPlayer from './VideoPlayer';
 
 const HostScreen = ({ socket, state }) => {
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [clickEffect, setClickEffect] = useState(null);
+  const localTimeMs = useLocalTime(state);
 
   const handleDurationReady = (durationSecs) => {
     const mins = Math.ceil(durationSecs / 60);
@@ -104,7 +105,11 @@ const HostScreen = ({ socket, state }) => {
           ))}
         </div>
 
-        <div className="status-badge" style={{ marginLeft: 'auto' }}>
+        <div className="timeline-clock-header" style={{ marginLeft: 'auto', marginRight: '1rem', fontWeight: 'bold', fontSize: '1.2rem', fontFamily: 'monospace', color: 'var(--accent-primary)' }}>
+          {formatTime(localTimeMs)} / {state.durationMinutes}:00
+        </div>
+
+        <div className="status-badge">
           Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
         </div>
       </div>
