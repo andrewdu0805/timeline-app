@@ -209,15 +209,18 @@ const ClusterNode = ({ cluster, isPlus, percent }) => {
         </div>
       ) : expanded ? (
         // Expanded List View
-        <div className="marker-label expanded-cluster" onClick={toggle} style={{ cursor: 'pointer', minWidth: '120px' }}>
-          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', marginBottom: '4px', paddingBottom: '4px', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center' }}>
+        <div className="marker-label expanded-cluster" onClick={toggle} style={{ cursor: 'pointer', minWidth: '130px', zIndex: 100 }}>
+          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', marginBottom: '6px', paddingBottom: '4px', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center' }}>
             {cluster.clicks.length} Events (Close)
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '150px', overflowY: 'auto' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
             {cluster.clicks.map((c, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                <span className="marker-name" style={{ fontSize: '0.75rem' }}>{c.name}</span>
-                <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '0.85rem' }}>
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', borderBottom: i < cluster.clicks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', paddingBottom: i < cluster.clicks.length - 1 ? '4px' : '0' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <span className="marker-name" style={{ fontSize: '0.75rem' }}>{c.name}</span>
+                  <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8 }}>{formatTime(c.exactMs)}</span>
+                </div>
+                <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
                   {isPlus ? `+${c.val}` : c.val}
                 </span>
               </div>
