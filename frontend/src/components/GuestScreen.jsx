@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocalTime, formatTime } from './Timeline';
+import Timeline, { useLocalTime, formatTime } from './Timeline';
 import VideoPlayer from './VideoPlayer';
 
 const GuestScreen = ({ socket, state, guestName }) => {
@@ -36,12 +36,14 @@ const GuestScreen = ({ socket, state, guestName }) => {
           <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10s</button>
         </div>
 
-        <div className="timeline-clock-header" style={{ marginLeft: '1rem', fontWeight: 'bold', fontSize: '1.2rem', fontFamily: 'monospace', color: 'var(--accent-primary)' }}>
-          {formatTime(localTimeMs)} / {state.durationMinutes}:00
-        </div>
-
-        <div className="status-badge" style={{ marginLeft: '1rem' }}>
-            Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
+        <div style={{ flexBasis: '100%', height: 0 }}></div>
+        <div style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
+            <div className="timeline-clock-header" style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '1.5rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '2px' }}>
+              {formatTime(localTimeMs)} / {state.durationMinutes}:00
+            </div>
+            <div className="status-badge" style={{ marginLeft: 'auto' }}>
+              Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
+            </div>
         </div>
       </div>
 

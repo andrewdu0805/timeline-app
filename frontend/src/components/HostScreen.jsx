@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocalTime, formatTime } from './Timeline';
+import Timeline, { useLocalTime, formatTime } from './Timeline';
 import VideoPlayer from './VideoPlayer';
 
 const HostScreen = ({ socket, state }) => {
@@ -105,12 +105,14 @@ const HostScreen = ({ socket, state }) => {
           ))}
         </div>
 
-        <div className="timeline-clock-header" style={{ marginLeft: 'auto', marginRight: '1rem', fontWeight: 'bold', fontSize: '1.2rem', fontFamily: 'monospace', color: 'var(--accent-primary)' }}>
-          {formatTime(localTimeMs)} / {state.durationMinutes}:00
-        </div>
-
-        <div className="status-badge">
-          Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
+        <div style={{ flexBasis: '100%', height: 0 }}></div>
+        <div style={{ display: 'flex', width: '100%', alignItems: 'center' }}>
+            <div className="timeline-clock-header" style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '1.5rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '2px' }}>
+              {formatTime(localTimeMs)} / {state.durationMinutes}:00
+            </div>
+            <div className="status-badge" style={{ marginLeft: 'auto' }}>
+              Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
+            </div>
         </div>
       </div>
       
