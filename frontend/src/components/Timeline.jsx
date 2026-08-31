@@ -138,7 +138,7 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
         className={`interaction-area left-area ${state.status === 'running' && onTimelineClick ? 'active' : ''}`}
         onClick={() => handleAreaClick(1)}
       >
-        {state.status === 'running' && onTimelineClick && <div className="area-hint">Click (+1)</div>}
+        {state.status === 'running' && onTimelineClick && <div className="area-hint">點擊 (+1)</div>}
       </div>
 
       {/* The Central Timeline Bar */}
@@ -182,7 +182,7 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
         className={`interaction-area right-area ${state.status === 'running' && onTimelineClick ? 'active' : ''}`}
         onClick={() => handleAreaClick(-1)}
       >
-        {state.status === 'running' && onTimelineClick && <div className="area-hint">Click (-1)</div>}
+        {state.status === 'running' && onTimelineClick && <div className="area-hint">點擊 (-1)</div>}
       </div>
       
     </div>
@@ -221,7 +221,7 @@ const ClusterNode = ({ cluster, isPlus, percent, guestName }) => {
         // Expanded List View
         <div className="marker-label expanded-cluster" onClick={toggle} style={{ cursor: 'pointer', minWidth: '130px', zIndex: 100 }}>
           <div style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', marginBottom: '6px', paddingBottom: '4px', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center' }}>
-            {cluster.clicks.length} Events (Close)
+            {cluster.clicks.length} 筆紀錄 (關閉)
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '200px', overflowY: 'auto' }}>
             {cluster.clicks.map((c, i) => (
@@ -241,7 +241,7 @@ const ClusterNode = ({ cluster, isPlus, percent, guestName }) => {
         // Collapsed Group View (Multiple clicks, but ALL from Me OR ALL from Others)
         <div className="marker-label cluster-summary" onClick={toggle} style={{ cursor: 'pointer', border: isPlus ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(239, 68, 68, 0.5)', background: 'rgba(0,0,0,0.8)' }}>
           <span style={{ fontWeight: 'bold', fontSize: '0.75rem', color: isPlus ? 'var(--color-plus)' : 'var(--color-minus)' }}>
-            {cluster.isMe ? `${cluster.clicks.length} Clicks` : `${cluster.clicks.length} Users`}
+            {cluster.isMe ? `${cluster.clicks.length} 次點擊` : `${cluster.clicks.length} 人點擊`}
           </span>
           <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '1rem', marginTop: '2px' }}>
             {totalVal > 0 ? `+${totalVal}` : totalVal}

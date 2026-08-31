@@ -25,11 +25,18 @@ const GuestScreen = ({ socket, state, guestName }) => {
   const myMinus = myClicks.filter(c => c.val < 0).reduce((sum, c) => sum + Math.abs(c.val), 0);
   const myBalance = myPlus - myMinus;
 
+  const statusMap = {
+    idle: '等待中',
+    running: '進行中',
+    paused: '已暫停',
+    finished: '已結束'
+  };
+
   return (
     <div className={`screen-container guest-screen ${clickEffect || ''}`}>
       <div className="guest-header glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
         <div className="user-info" style={{ marginRight: '0.5rem' }}>
-          Guest: <span>{guestName}</span>
+          名字: <span>{guestName}</span>
         </div>
 
         <div className="timeline-clock-header" style={{ fontWeight: 'bold', fontSize: '1.2rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '1px', padding: '0 0.5rem' }}>
@@ -38,24 +45,24 @@ const GuestScreen = ({ socket, state, guestName }) => {
 
         {state.status !== 'idle' && (
           <div className="live-balance" style={{ display: 'flex', gap: '0.8rem', background: 'rgba(0,0,0,0.4)', padding: '0.3rem 0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.9rem', alignItems: 'center' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>My Clicks:</span>
+            <span style={{ color: 'var(--text-secondary)' }}>我的點擊:</span>
             <span style={{ color: 'var(--color-plus)', fontWeight: 'bold' }}>+{myPlus}</span>
             <span style={{ color: 'var(--color-minus)', fontWeight: 'bold' }}>-{myMinus}</span>
             <span style={{ fontWeight: 'bold', marginLeft: '0.5rem', color: myBalance === 0 ? '#10b981' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
-              {myBalance === 0 ? '✅ Bal: 0' : `Bal: ${myBalance > 0 ? '+' : ''}${myBalance}`}
+              {myBalance === 0 ? '✅ 完美平衡' : `平衡: ${myBalance > 0 ? '+' : ''}${myBalance}`}
             </span>
           </div>
         )}
 
         <div className="control-group">
           {state.status === 'running' && (
-             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#f59e0b' }} onClick={handlePause}>Pause</button>
+             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#f59e0b' }} onClick={handlePause}>暫停</button>
           )}
           {state.status === 'paused' && (
-             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#10b981' }} onClick={handleResume}>Resume</button>
+             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#10b981' }} onClick={handleResume}>繼續</button>
           )}
-          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(-10000)} disabled={state.status === 'idle' || state.status === 'finished'}>-10s</button>
-          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10s</button>
+          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(-10000)} disabled={state.status === 'idle' || state.status === 'finished'}>-10秒</button>
+          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10秒</button>
         </div>
 
         {state.guests && state.guests.length > 0 && (
@@ -68,7 +75,7 @@ const GuestScreen = ({ socket, state, guestName }) => {
               border: '1px solid rgba(255,255,255,0.2)'
             }}
           >
-            <span>Guests: {state.guests.length}</span>
+            <span>線上: {state.guests.length} 人</span>
             <span style={{opacity: 0.8}}>
               ({[
                 state.guests.some(g => g.device === 'Desktop') ? `💻 ${state.guests.filter(g => g.device === 'Desktop').length}` : '',
@@ -80,7 +87,7 @@ const GuestScreen = ({ socket, state, guestName }) => {
         )}
 
         <div className="status-badge" style={{ marginLeft: state.guests && state.guests.length > 0 ? '0' : 'auto' }}>
-          Status: <span className={`status-${state.status}`}>{state.status.toUpperCase()}</span>
+          狀態: <span className={`status-${state.status}`}>{statusMap[state.status] || state.status}</span>
         </div>
       </div>
 
