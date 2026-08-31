@@ -179,7 +179,7 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
   );
 };
 
-const ClusterNode = ({ cluster, isPlus, percent }) => {
+const ClusterNode = ({ cluster, isPlus, percent, guestName }) => {
   const [expanded, setExpanded] = useState(false);
 
   const toggle = (e) => {
@@ -187,27 +187,19 @@ const ClusterNode = ({ cluster, isPlus, percent }) => {
     setExpanded(!expanded);
   };
 
-  const totalVal = cluster.clicks.reduce((sum, c) => sum + c.val, 0);
+  const myClicks = cluster.clicks.filter(c => c.name === guestName);
+  const otherClicks = cluster.clicks.filter(c => c.name !== guestName);
+  const hasMe = myClicks.length > 0;
+  const hasOthers = otherClicks.length > 0;
   
   return (
     <div 
       className={`marker ${isPlus ? 'left-marker' : 'right-marker'} ${cluster.isMe ? 'my-marker' : ''}`}
-      style={{ top: `${percent}%`, zIndex: expanded ? 100 : 10 }}
+      style={{ top: `${percent}%`, zIndex: expanded ? 100 : (cluster.isMe ? 50 : 10) }}
     >
       <div className="marker-dot"></div>
       
-      {cluster.clicks.length === 1 && !expanded ? (
-        // Single Click View
-        <div className="marker-label" onClick={toggle} style={{ cursor: 'pointer' }}>
-          <span className="marker-name">{cluster.clicks[0].name}</span>
-          <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
-            {isPlus ? `+${cluster.clicks[0].val}` : cluster.clicks[0].val}
-          </span>
-          <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>
-            {formatTime(cluster.clicks[0].exactMs)}
-          </span>
-        </div>
-      ) : expanded ? (
+      {expanded ? (
         // Expanded List View
         <div className="marker-label expanded-cluster" onClick={toggle} style={{ cursor: 'pointer', minWidth: '130px', zIndex: 100 }}>
           <div style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', marginBottom: '6px', paddingBottom: '4px', fontWeight: 'bold', fontSize: '0.75rem', textAlign: 'center' }}>
@@ -217,7 +209,7 @@ const ClusterNode = ({ cluster, isPlus, percent }) => {
             {cluster.clicks.map((c, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', borderBottom: i < cluster.clicks.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', paddingBottom: i < cluster.clicks.length - 1 ? '4px' : '0' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <span className="marker-name" style={{ fontSize: '0.75rem' }}>{c.name}</span>
+                  <span className="marker-name" style={{ fontSize: '0.75rem', color: c.name === guestName ? '#facc15' : 'inherit' }}>{c.name}</span>
                   <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8 }}>{formatTime(c.exactMs)}</span>
                 </div>
                 <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
@@ -228,15 +220,40 @@ const ClusterNode = ({ cluster, isPlus, percent }) => {
           </div>
         </div>
       ) : (
-        // Collapsed Group View
+        // Collapsed Group View (Separates "Me" and "Others")
         <div className="marker-label cluster-summary" onClick={toggle} style={{ cursor: 'pointer', border: isPlus ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(239, 68, 68, 0.5)', background: 'rgba(0,0,0,0.8)' }}>
-          <span style={{ fontWeight: 'bold', fontSize: '0.75rem', color: isPlus ? 'var(--color-plus)' : 'var(--color-minus)' }}>
-            {cluster.clicks.length} Users
-          </span>
-          <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '1rem', marginTop: '2px' }}>
-            {totalVal > 0 ? `+${totalVal}` : totalVal}
-          </span>
-          <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>
+          {hasMe && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: hasOthers ? '4px' : '0', borderBottom: hasOthers ? '1px solid rgba(255,255,255,0.2)' : 'none', marginBottom: hasOthers ? '4px' : '0' }}>
+              <span className="marker-name" style={{ color: '#facc15' }}>{myClicks[0].name}</span>
+              <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
+                {isPlus ? `+${myClicks.reduce((s, c) => s + c.val, 0)}` : myClicks.reduce((s, c) => s + c.val, 0)}
+              </span>
+            </div>
+          )}
+          
+          {hasOthers && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {otherClicks.length === 1 ? (
+                <>
+                  <span className="marker-name">{otherClicks[0].name}</span>
+                  <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
+                    {isPlus ? `+${otherClicks[0].val}` : otherClicks[0].val}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontWeight: 'bold', fontSize: '0.75rem', color: isPlus ? 'var(--color-plus)' : 'var(--color-minus)' }}>
+                    {hasMe ? `${otherClicks.length} Others` : `${otherClicks.length} Users`}
+                  </span>
+                  <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '1rem', marginTop: '2px' }}>
+                    {isPlus ? `+${otherClicks.reduce((s, c) => s + c.val, 0)}` : otherClicks.reduce((s, c) => s + c.val, 0)}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+          
+          <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '4px' }}>
             {formatTime(cluster.exactMs)}
           </span>
         </div>
