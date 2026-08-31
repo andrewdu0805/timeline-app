@@ -18,7 +18,13 @@ const GuestScreen = ({ socket, state, guestName }) => {
   const handleResume = () => socket.emit('resume_timeline');
   const handleSeek = (ms) => socket.emit('seek_timeline', ms);
 
-  const isMobile = /Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(navigator.userAgent);
+  const getDeviceType = () => {
+    const ua = navigator.userAgent;
+    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'Tablet';
+    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'Mobile';
+    return 'Desktop';
+  };
+  const isMobilePhone = getDeviceType() === 'Mobile';
 
   const myClicks = state.clicks.filter(c => c.name === guestName);
   const myPlus = myClicks.filter(c => c.val > 0).reduce((sum, c) => sum + c.val, 0);
@@ -92,7 +98,7 @@ const GuestScreen = ({ socket, state, guestName }) => {
       </div>
 
       <div className="split-layout">
-        {!isMobile && (
+        {!isMobilePhone && (
           <div className="split-video-pane">
             <VideoPlayer videoId={state.videoId} state={state} />
           </div>
