@@ -55,7 +55,7 @@ const GuestScreen = ({ socket, state, guestName }) => {
             <span style={{ color: 'var(--color-plus)', fontWeight: 'bold' }}>+{myPlus}</span>
             <span style={{ color: 'var(--color-minus)', fontWeight: 'bold' }}>-{myMinus}</span>
             <span style={{ fontWeight: 'bold', marginLeft: '0.5rem', color: myBalance === 0 ? '#10b981' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
-              {myBalance === 0 ? '✅ 完美平衡' : `平衡: ${myBalance > 0 ? '+' : ''}${myBalance}`}
+              {myBalance === 0 ? '✅ 空手' : `平衡: ${myBalance > 0 ? '+' : ''}${myBalance}`}
             </span>
           </div>
         )}
