@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import * as XLSX from 'xlsx';
 
 const SummaryScreen = ({ state, onReset, role }) => {
   // Aggregate clicks by user, ensuring all active guests are included
@@ -39,57 +40,68 @@ const SummaryScreen = ({ state, onReset, role }) => {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleDownloadCSV = () => {
-    // Find the maximum number of history events any user has to generate dynamic columns
-    const maxHistory = Math.max(0, ...summary.map(u => u.history.length));
-    
-    // Generate CSV Header
-    let headerStr = "Guest Name,Top Clicks (+1),Bottom Clicks (-1),Sum,Balanced";
-    for (let i = 1; i <= maxHistory; i++) {
-      headerStr += `,Event ${i}`;
-    }
-    
-    // Add BOM (\uFEFF) for Excel UTF-8 support to fix Chinese encoding
-    let csvContent = "\uFEFF" + headerStr + "\n";
-    
-    // Add Rows
+  const handleDownloadExcel = () => {
+    const wb = XLSX.utils.book_new();
+
     summary.forEach(user => {
-      const balanced = user.sum === 0 ? "Yes" : "No";
+      const topClicks = user.history.filter(h => h.val > 0);
+      const bottomClicks = user.history.filter(h => h.val < 0);
+      const maxRows = Math.max(topClicks.length, bottomClicks.length, 1);
       
-      // Escape name just in case it contains commas
-      let row = `"${user.name.replace(/"/g, '""')}",${user.plus},${user.minus},${user.sum},${balanced}`;
+      const sheetData = [];
+      // Row 0: Headers
+      sheetData.push(["名字", "多單總數 (+1)", "空單總數 (-1)", "平衡 (淨值)", "是否空手", "多單紀錄", "空單紀錄"]);
       
-      // Add each history event to its own column
-      for (let i = 0; i < maxHistory; i++) {
-        if (i < user.history.length) {
-          const h = user.history[i];
-          row += `,"${h.val > 0 ? '+1' : h.val} @ ${formatTime(h.exactMs)}"`;
+      // Rows 1 to maxRows
+      for (let i = 0; i < maxRows; i++) {
+        const topStr = i < topClicks.length ? `+${topClicks[i].val} @ ${formatTime(topClicks[i].exactMs)}` : "";
+        const btmStr = i < bottomClicks.length ? `${bottomClicks[i].val} @ ${formatTime(bottomClicks[i].exactMs)}` : "";
+        
+        if (i === 0) {
+          // First row contains the summary stats
+          const isBalanced = user.sum === 0 ? "是" : "否";
+          sheetData.push([user.name, user.plus, user.minus, user.sum, isBalanced, topStr, btmStr]);
         } else {
-          row += `,""`;
+          // Subsequent rows only contain history
+          sheetData.push(["", "", "", "", "", topStr, btmStr]);
         }
       }
       
-      csvContent += row + "\n";
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+      
+      // Auto-size columns roughly
+      ws['!cols'] = [
+        { wch: 15 }, // Name
+        { wch: 15 }, // Plus
+        { wch: 15 }, // Minus
+        { wch: 12 }, // Sum
+        { wch: 10 }, // Balanced
+        { wch: 18 }, // Top History
+        { wch: 18 }  // Bottom History
+      ];
+      
+      // Sanitize sheet name (Excel limits to 31 chars and no []\/?*:)
+      let sheetName = user.name.replace(/[\[\]\\/?*:|]/g, '').substring(0, 31);
+      if (!sheetName) sheetName = "User";
+      
+      // Ensure unique sheet names if duplicates exist (rare but possible)
+      let finalSheetName = sheetName;
+      let counter = 1;
+      while (wb.SheetNames.includes(finalSheetName)) {
+        finalSheetName = `${sheetName.substring(0, 28)}_${counter}`;
+        counter++;
+      }
+      
+      XLSX.utils.book_append_sheet(wb, ws, finalSheetName);
     });
 
-    // Create Blob and trigger download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    
-    // Use video title for filename, fallback to generic name
-    let filename = `timeline_summary_${new Date().getTime()}.csv`;
+    let filename = `timeline_summary_${new Date().getTime()}.xlsx`;
     if (state.videoTitle) {
-      // Sanitize filename to remove invalid characters
       const safeTitle = state.videoTitle.replace(/[\/\\?%*:|"<>]/g, '-');
-      filename = `${safeTitle}.csv`;
+      filename = `${safeTitle}.xlsx`;
     }
-    
-    link.setAttribute("href", url);
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    XLSX.writeFile(wb, filename);
   };
 
   return (
@@ -149,8 +161,8 @@ const SummaryScreen = ({ state, onReset, role }) => {
         <div className="summary-actions" style={{ gap: '1rem' }}>
           {role === 'host' ? (
             <>
-              <button className="btn btn-secondary" onClick={handleDownloadCSV} disabled={summary.length === 0}>
-                Download CSV
+              <button className="btn btn-secondary" onClick={handleDownloadExcel} disabled={summary.length === 0}>
+                下載 Excel (.xlsx)
               </button>
               <button className="btn btn-primary" onClick={onReset}>
                 Reset Timeline for New Session
@@ -158,8 +170,8 @@ const SummaryScreen = ({ state, onReset, role }) => {
             </>
           ) : (
             <>
-              <button className="btn btn-secondary" onClick={handleDownloadCSV} disabled={summary.length === 0}>
-                Download CSV
+              <button className="btn btn-secondary" onClick={handleDownloadExcel} disabled={summary.length === 0}>
+                下載 Excel (.xlsx)
               </button>
               <p className="waiting-text" style={{ alignSelf: 'center', margin: 0 }}>Waiting for Host to reset...</p>
             </>
