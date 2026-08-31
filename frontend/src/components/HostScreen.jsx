@@ -95,8 +95,8 @@ const HostScreen = ({ socket, state }) => {
             <span style={{ color: 'var(--text-secondary)' }}>My Clicks:</span>
             <span style={{ color: 'var(--color-plus)', fontWeight: 'bold' }}>+{myPlus}</span>
             <span style={{ color: 'var(--color-minus)', fontWeight: 'bold' }}>-{myMinus}</span>
-            <span style={{ fontWeight: 'bold', marginLeft: '0.5rem', color: myBalance === 0 ? '#10b981' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
-              {myBalance === 0 ? '✅ 空手' : `平衡: ${myBalance > 0 ? '+' : ''}${myBalance}`}
+            <span style={{ fontWeight: 'bold', marginLeft: '0.5rem', color: myBalance === 0 ? 'var(--text-primary)' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
+              {myBalance === 0 ? '✅ 空手' : `${myBalance > 0 ? '多單: +' : '空單: '}${myBalance}`}
             </span>
           </div>
         )}

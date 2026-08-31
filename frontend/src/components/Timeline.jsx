@@ -239,7 +239,7 @@ const ClusterNode = ({ cluster, isPlus, percent, guestName }) => {
         </div>
       ) : (
         // Collapsed Group View (Multiple clicks, but ALL from Me OR ALL from Others)
-        <div className="marker-label cluster-summary" onClick={toggle} style={{ cursor: 'pointer', border: isPlus ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(239, 68, 68, 0.5)', background: 'rgba(0,0,0,0.8)' }}>
+        <div className="marker-label cluster-summary" onClick={toggle} style={{ cursor: 'pointer', border: isPlus ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(16, 185, 129, 0.5)', background: 'rgba(0,0,0,0.8)' }}>
           <span style={{ fontWeight: 'bold', fontSize: '0.75rem', color: isPlus ? 'var(--color-plus)' : 'var(--color-minus)' }}>
             {cluster.isMe ? `${cluster.clicks.length} 次點擊` : `${cluster.clicks.length} 人點擊`}
           </span>

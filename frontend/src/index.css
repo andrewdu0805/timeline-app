@@ -8,8 +8,8 @@
   --accent-primary-hover: #2563eb;
   --accent-glow: rgba(59, 130, 246, 0.5);
   
-  --color-plus: #10b981; /* Green */
-  --color-minus: #ef4444; /* Red */
+  --color-plus: #ef4444; /* Red */
+  --color-minus: #10b981; /* Green */
   
   --glass-blur: 12px;
   --radius-lg: 16px;
@@ -367,8 +367,8 @@ body {
   cursor: help;
   animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.left-marker .marker-label { right: 15px; border: 1px solid rgba(16, 185, 129, 0.3); }
-.right-marker .marker-label { left: 15px; border: 1px solid rgba(239, 68, 68, 0.3); }
+.left-marker .marker-label { right: 15px; border: 1px solid rgba(239, 68, 68, 0.3); }
+.right-marker .marker-label { left: 15px; border: 1px solid rgba(16, 185, 129, 0.3); }
 .marker-name { font-weight: 600; }
 .marker-val.plus { color: var(--color-plus); }
 .marker-val.minus { color: var(--color-minus); }
@@ -444,8 +444,8 @@ body {
   font-size: 0.8rem;
   font-weight: bold;
 }
-.badge.success { background: rgba(16, 185, 129, 0.2); color: var(--color-plus); }
-.badge.danger { background: rgba(239, 68, 68, 0.2); color: var(--color-minus); }
+.badge.success { background: rgba(239, 68, 68, 0.2); color: var(--color-plus); }
+.badge.danger { background: rgba(16, 185, 129, 0.2); color: var(--color-minus); }
 
 .history-cell { max-width: 300px; }
 .history-list {
@@ -491,10 +491,10 @@ body {
   transition: background 0.3s;
 }
 .screen-container.effect-left {
-  background: radial-gradient(circle at 25% 50%, rgba(16, 185, 129, 0.1), var(--bg-color) 60%);
+  background: radial-gradient(circle at 25% 50%, rgba(239, 68, 68, 0.1), var(--bg-color) 60%);
 }
 .screen-container.effect-right {
-  background: radial-gradient(circle at 75% 50%, rgba(239, 68, 68, 0.1), var(--bg-color) 60%);
+  background: radial-gradient(circle at 75% 50%, rgba(16, 185, 129, 0.1), var(--bg-color) 60%);
 }
 
 /* Split Layout */
