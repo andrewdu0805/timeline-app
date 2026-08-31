@@ -20,6 +20,11 @@ const GuestScreen = ({ socket, state, guestName }) => {
 
   const isMobile = /Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(navigator.userAgent);
 
+  const myClicks = state.clicks.filter(c => c.name === guestName);
+  const myPlus = myClicks.filter(c => c.val > 0).reduce((sum, c) => sum + c.val, 0);
+  const myMinus = myClicks.filter(c => c.val < 0).reduce((sum, c) => sum + Math.abs(c.val), 0);
+  const myBalance = myPlus - myMinus;
+
   return (
     <div className={`screen-container guest-screen ${clickEffect || ''}`}>
       <div className="guest-header glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
@@ -30,6 +35,17 @@ const GuestScreen = ({ socket, state, guestName }) => {
         <div className="timeline-clock-header" style={{ fontWeight: 'bold', fontSize: '1.2rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '1px', padding: '0 0.5rem' }}>
           {formatTime(localTimeMs)} / {state.durationMinutes}:00
         </div>
+
+        {state.status !== 'idle' && (
+          <div className="live-balance" style={{ display: 'flex', gap: '0.8rem', background: 'rgba(0,0,0,0.4)', padding: '0.3rem 0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.9rem', alignItems: 'center' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>My Clicks:</span>
+            <span style={{ color: 'var(--color-plus)', fontWeight: 'bold' }}>+{myPlus}</span>
+            <span style={{ color: 'var(--color-minus)', fontWeight: 'bold' }}>-{myMinus}</span>
+            <span style={{ fontWeight: 'bold', marginLeft: '0.5rem', color: myBalance === 0 ? '#10b981' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
+              {myBalance === 0 ? '✅ Bal: 0' : `Bal: ${myBalance > 0 ? '+' : ''}${myBalance}`}
+            </span>
+          </div>
+        )}
 
         <div className="control-group">
           {state.status === 'running' && (
