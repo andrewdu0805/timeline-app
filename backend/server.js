@@ -144,6 +144,19 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('end_timeline', () => {
+    if (state.status === 'running' || state.status === 'paused') {
+      if (state.status === 'running') {
+        const now = Date.now();
+        const delta = now - lastTickTime;
+        state.elapsedTimeMs += delta * state.speed;
+      }
+      state.status = 'finished';
+      if (tickInterval) clearInterval(tickInterval);
+      broadcastState();
+    }
+  });
+
   socket.on('reset', () => {
     state = {
       status: 'idle',

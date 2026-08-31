@@ -98,8 +98,10 @@ const HostScreen = ({ socket, state }) => {
           
           <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(-10000)} disabled={state.status === 'idle' || state.status === 'finished'}>-10s</button>
           <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10s</button>
+          
+          <button className="btn btn-danger" style={{ padding: '0.4rem 1rem' }} onClick={() => socket.emit('end_timeline')} disabled={state.status === 'idle' || state.status === 'finished'}>Finish & Output Data</button>
 
-          <button className="btn btn-danger" style={{ padding: '0.4rem 1rem' }} onClick={handleReset}>Reset</button>
+          <button className="btn btn-secondary" style={{ padding: '0.4rem 1rem', marginLeft: '0.5rem' }} onClick={handleReset}>Clear All Data</button>
         </div>
 
         <div className="control-group speed-controls">
