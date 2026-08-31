@@ -72,7 +72,15 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
     if (onDurationReady && playerRef.current && !durationReportedRef.current) {
       const d = playerRef.current.getDuration();
       if (d > 0) {
-        onDurationReady(d);
+        let title = '';
+        try {
+          const videoData = playerRef.current.getVideoData();
+          if (videoData && videoData.title) {
+            title = videoData.title;
+          }
+        } catch (e) {}
+        
+        onDurationReady(d, title);
         durationReportedRef.current = true;
       }
     }

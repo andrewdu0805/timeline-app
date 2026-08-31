@@ -7,10 +7,10 @@ const HostScreen = ({ socket, state }) => {
   const [clickEffect, setClickEffect] = useState(null);
   const localTimeMs = useLocalTime(state);
 
-  const handleDurationReady = (durationSecs) => {
+  const handleDurationReady = (durationSecs, title) => {
     const mins = Math.ceil(durationSecs / 60);
-    if (state.durationMinutes !== mins) {
-      socket.emit('set_duration', mins);
+    if (state.durationMinutes !== mins || (title && state.videoTitle !== title)) {
+      socket.emit('set_video_metadata', { minutes: mins, title });
     }
   };
 

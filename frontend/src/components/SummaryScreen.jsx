@@ -76,8 +76,17 @@ const SummaryScreen = ({ state, onReset, role }) => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
+    
+    // Use video title for filename, fallback to generic name
+    let filename = `timeline_summary_${new Date().getTime()}.csv`;
+    if (state.videoTitle) {
+      // Sanitize filename to remove invalid characters
+      const safeTitle = state.videoTitle.replace(/[\/\\?%*:|"<>]/g, '-');
+      filename = `${safeTitle}.csv`;
+    }
+    
     link.setAttribute("href", url);
-    link.setAttribute("download", `timeline_summary_${new Date().getTime()}.csv`);
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

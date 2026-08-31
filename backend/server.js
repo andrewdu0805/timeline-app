@@ -72,9 +72,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('set_duration', (minutes) => {
+  socket.on('set_video_metadata', ({ minutes, title }) => {
     if (state.status === 'idle') {
       state.durationMinutes = Math.max(1, minutes);
+      if (title) {
+        state.videoTitle = title;
+      }
       broadcastState();
     }
   });
@@ -165,7 +168,8 @@ io.on('connection', (socket) => {
       elapsedTimeMs: 0,
       clicks: [],
       guests: state.guests, // Preserve connected guests!
-      videoId: state.videoId
+      videoId: state.videoId,
+      videoTitle: state.videoTitle
     };
     if (tickInterval) clearInterval(tickInterval);
     broadcastState();
