@@ -40,13 +40,44 @@ const GuestScreen = ({ socket, state, guestName }) => {
 
   return (
     <div className={`screen-container guest-screen ${clickEffect || ''}`}>
-      <div className="guest-header glass-panel" style={{ padding: '0.5rem', marginBottom: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div className="guest-header glass-panel">
         
-        {/* Row 1: Name & Status/Guests */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* Group 1: User & Clock */}
+        <div className="guest-header-group">
           <div className="user-info" style={{ fontSize: '0.95rem' }}>
             名字: <span>{guestName}</span>
           </div>
+          <div className="timeline-clock-header" style={{ fontWeight: 'bold', fontSize: '1.1rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '1px' }}>
+            {formatTime(localTimeMs)} / {state.durationMinutes}:00
+          </div>
+        </div>
+
+        {/* Group 2: Controls */}
+        <div className="guest-header-group center">
+          <div className="control-group" style={{ display: 'flex', gap: '0.5rem' }}>
+            {state.status === 'running' && (
+               <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#f59e0b', fontSize: '0.9rem' }} onClick={handlePause}>暫停</button>
+            )}
+            {state.status === 'paused' && (
+               <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#10b981', fontSize: '0.9rem' }} onClick={handleResume}>繼續</button>
+            )}
+            <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={() => handleSeek(-10000)} disabled={state.status === 'idle' || state.status === 'finished'}>-10秒</button>
+            <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10秒</button>
+          </div>
+        </div>
+
+        {/* Group 3: Balance & Status */}
+        <div className="guest-header-group right">
+          {state.status !== 'idle' && (
+            <div className="live-balance" style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.4)', padding: '0.2rem 0.5rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.85rem', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>點擊:</span>
+              <span style={{ color: 'var(--color-plus)', fontWeight: 'bold' }}>+{myPlus}</span>
+              <span style={{ color: 'var(--color-minus)', fontWeight: 'bold' }}>-{myMinus}</span>
+              <span style={{ fontWeight: 'bold', marginLeft: '0.2rem', color: myBalance === 0 ? 'var(--text-primary)' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
+                {myBalance === 0 ? '✅ 空手' : `${myBalance > 0 ? '多單: +' : '空單: '}${myBalance}`}
+              </span>
+            </div>
+          )}
           
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             {state.guests && state.guests.length > 0 && (
@@ -64,36 +95,6 @@ const GuestScreen = ({ socket, state, guestName }) => {
               狀態: <span className={`status-${state.status}`}>{statusMap[state.status] || state.status}</span>
             </div>
           </div>
-        </div>
-
-        {/* Row 2: Clock & Balance */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
-          <div className="timeline-clock-header" style={{ fontWeight: 'bold', fontSize: '1.1rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '1px' }}>
-            {formatTime(localTimeMs)} / {state.durationMinutes}:00
-          </div>
-          
-          {state.status !== 'idle' && (
-            <div className="live-balance" style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.4)', padding: '0.2rem 0.5rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.85rem', alignItems: 'center' }}>
-              <span style={{ color: 'var(--text-secondary)' }}>點擊:</span>
-              <span style={{ color: 'var(--color-plus)', fontWeight: 'bold' }}>+{myPlus}</span>
-              <span style={{ color: 'var(--color-minus)', fontWeight: 'bold' }}>-{myMinus}</span>
-              <span style={{ fontWeight: 'bold', marginLeft: '0.2rem', color: myBalance === 0 ? 'var(--text-primary)' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
-                {myBalance === 0 ? '✅ 空手' : `${myBalance > 0 ? '多單: +' : '空單: '}${myBalance}`}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Row 3: Controls */}
-        <div className="control-group" style={{ display: 'flex', justifyContent: 'center', width: '100%', gap: '0.5rem' }}>
-          {state.status === 'running' && (
-             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#f59e0b', fontSize: '0.9rem' }} onClick={handlePause}>暫停</button>
-          )}
-          {state.status === 'paused' && (
-             <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', backgroundColor: '#10b981', fontSize: '0.9rem' }} onClick={handleResume}>繼續</button>
-          )}
-          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={() => handleSeek(-10000)} disabled={state.status === 'idle' || state.status === 'finished'}>-10秒</button>
-          <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }} onClick={() => handleSeek(10000)} disabled={state.status === 'idle' || state.status === 'finished'}>+10秒</button>
         </div>
 
       </div>
