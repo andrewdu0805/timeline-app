@@ -42,6 +42,7 @@ const SummaryScreen = ({ state, onReset, role }) => {
 
   const handleDownloadExcel = () => {
     const wb = XLSX.utils.book_new();
+    const videoUrl = state.videoId ? `https://youtu.be/${state.videoId}` : "";
 
     summary.forEach(user => {
       const topClicks = user.history.filter(h => h.val > 0);
@@ -49,10 +50,15 @@ const SummaryScreen = ({ state, onReset, role }) => {
       const maxRows = Math.max(topClicks.length, bottomClicks.length, 1);
       
       const sheetData = [];
-      // Row 0: Headers
+      // Rows 0-2: Video metadata & separator
+      sheetData.push(["影片連結", videoUrl || "未設定"]);
+      sheetData.push(["影片名稱", state.videoTitle || "未設定"]);
+      sheetData.push([]); // Blank row separator
+
+      // Row 3: Headers
       sheetData.push(["名字", "多單總數 (+1)", "空單總數 (-1)", "平衡 (淨值)", "是否空手", "多單紀錄", "空單紀錄"]);
       
-      // Rows 1 to maxRows
+      // Rows 4 to maxRows + 3
       for (let i = 0; i < maxRows; i++) {
         const topStr = i < topClicks.length ? `+${topClicks[i].val} @ ${formatTime(topClicks[i].exactMs)}` : "";
         const btmStr = i < bottomClicks.length ? `${bottomClicks[i].val} @ ${formatTime(bottomClicks[i].exactMs)}` : "";
@@ -69,15 +75,20 @@ const SummaryScreen = ({ state, onReset, role }) => {
       
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
       
+      // Make the video URL cell in B1 a true clickable hyperlink
+      if (videoUrl && ws['B1']) {
+        ws['B1'].l = { Target: videoUrl, Tooltip: "點擊開啟 YouTube 影片" };
+      }
+      
       // Auto-size columns roughly
       ws['!cols'] = [
-        { wch: 15 }, // Name
-        { wch: 15 }, // Plus
+        { wch: 15 }, // Name / Label
+        { wch: 35 }, // Plus / Video URL
         { wch: 15 }, // Minus
         { wch: 12 }, // Sum
-        { wch: 10 }, // Balanced
-        { wch: 18 }, // Top History
-        { wch: 18 }  // Bottom History
+        { wch: 12 }, // Balanced
+        { wch: 20 }, // Top History
+        { wch: 20 }  // Bottom History
       ];
       
       // Sanitize sheet name (Excel limits to 31 chars and no []\/?*:)
