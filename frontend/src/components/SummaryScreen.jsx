@@ -109,6 +109,23 @@ const SummaryScreen = ({ state, onReset, role }) => {
       <div className="glass-panel summary-panel">
         <h1 className="title gradient-text">Timeline Completed</h1>
         
+        {state.videoId && (
+          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            <a 
+              href={`https://youtu.be/${state.videoId}`} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="guest-video-link"
+              style={{ fontSize: '0.85rem', padding: '0.3rem 0.8rem' }}
+              title={state.videoTitle ? `${state.videoTitle}\nhttps://youtu.be/${state.videoId}` : `https://youtu.be/${state.videoId}`}
+            >
+              <span>📺</span>
+              <span>影片連結: youtu.be/{state.videoId}</span>
+              <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>↗</span>
+            </a>
+          </div>
+        )}
+        
         {summary.length === 0 ? (
           <p className="no-data">No users or clicks recorded during this session.</p>
         ) : (

@@ -42,11 +42,31 @@ const GuestScreen = ({ socket, state, guestName }) => {
     <div className={`screen-container guest-screen ${clickEffect || ''}`}>
       <div className="guest-header glass-panel">
         
-        {/* Group 1: User & Clock */}
+        {/* Group 1: User, Video Link & Clock */}
         <div className="guest-header-group">
           <div className="user-info" style={{ fontSize: '0.95rem' }}>
             名字: <span>{guestName}</span>
           </div>
+
+          {state.videoId ? (
+            <a 
+              href={`https://youtu.be/${state.videoId}`} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="guest-video-link"
+              title={state.videoTitle ? `${state.videoTitle}\nhttps://youtu.be/${state.videoId}` : `https://youtu.be/${state.videoId}`}
+            >
+              <span>📺</span>
+              <span className="guest-video-link-text">youtu.be/{state.videoId}</span>
+              <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>↗</span>
+            </a>
+          ) : (
+            <span className="guest-video-link disabled" title="等待主機 (Host) 設定 YouTube 影片">
+              <span>📺</span>
+              <span className="guest-video-link-text">待設定影片</span>
+            </span>
+          )}
+
           <div className="timeline-clock-header" style={{ fontWeight: 'bold', fontSize: '1.1rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '1px' }}>
             {formatTime(localTimeMs)} / {state.durationMinutes}:00
           </div>

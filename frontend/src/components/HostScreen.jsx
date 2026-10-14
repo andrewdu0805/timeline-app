@@ -15,9 +15,10 @@ const HostScreen = ({ socket, state }) => {
   };
 
   const handleSetVideo = () => {
-    // Extract video ID from URL or just use it directly
-    let id = videoUrlInput;
-    const match = videoUrlInput.match(/(?:v=|\/)([0-9A-Za-z_-]{11}).*/);
+    const raw = videoUrlInput.trim();
+    if (!raw) return;
+    let id = raw;
+    const match = raw.match(/(?:v=|\/|embed\/|shorts\/)([0-9A-Za-z_-]{11})/);
     if (match && match[1]) {
       id = match[1];
     }
@@ -84,6 +85,20 @@ const HostScreen = ({ socket, state }) => {
             style={{ width: '180px', padding: '0.4rem 0.5rem' }}
           />
           <button className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem' }} onClick={handleSetVideo} disabled={state.status !== 'idle' || !videoUrlInput}>Set Video</button>
+          {state.videoId && (
+            <a 
+              href={`https://youtu.be/${state.videoId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="guest-video-link"
+              style={{ marginLeft: '0.3rem' }}
+              title={state.videoTitle ? `${state.videoTitle}\nhttps://youtu.be/${state.videoId}` : `https://youtu.be/${state.videoId}`}
+            >
+              <span>📺</span>
+              <span className="guest-video-link-text">youtu.be/{state.videoId}</span>
+              <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>↗</span>
+            </a>
+          )}
         </div>
 
         <div className="timeline-clock-header" style={{ fontWeight: 'bold', fontSize: '1.2rem', fontFamily: 'monospace', color: 'var(--accent-primary)', letterSpacing: '1px', padding: '0 0.5rem' }}>
