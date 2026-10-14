@@ -64,6 +64,11 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
 
   const onReady = (event) => {
     playerRef.current = event.target;
+    try {
+      if (event.target.setPlaybackQuality) {
+        event.target.setPlaybackQuality('hd1080');
+      }
+    } catch (e) {}
     syncPlayer();
     checkDuration();
   };
@@ -129,10 +134,10 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
     width: '100%',
     playerVars: {
       autoplay: 0,
-      controls: 0, // hide controls to enforce sync
-      disablekb: 1, // disable keyboard controls
+      controls: 1, // Enable native controls so user can select 1080p/4K and adjust volume
       rel: 0,
-      modestbranding: 1
+      modestbranding: 1,
+      vq: 'hd1080', // Hint YouTube to request 1080p
     },
   };
 
