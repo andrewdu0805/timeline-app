@@ -118,7 +118,7 @@ const SummaryScreen = ({ state, onReset, role }) => {
   return (
     <div className="screen-container summary-screen">
       <div className="glass-panel summary-panel">
-        <h1 className="title gradient-text">Timeline Completed</h1>
+        <h1 className="title gradient-text">時間線已結束</h1>
         
         {state.videoId && (
           <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
@@ -138,18 +138,18 @@ const SummaryScreen = ({ state, onReset, role }) => {
         )}
         
         {summary.length === 0 ? (
-          <p className="no-data">No users or clicks recorded during this session.</p>
+          <p className="no-data">本次活動沒有任何點擊紀錄。</p>
         ) : (
           <div className="table-responsive">
             <table className="summary-table">
               <thead>
                 <tr>
-                  <th>Guest Name</th>
-                  <th>Top Clicks (+1)</th>
-                  <th>Bottom Clicks (-1)</th>
-                  <th>Sum</th>
-                  <th>Balanced (0)?</th>
-                  <th>History (Time)</th>
+                  <th>名字</th>
+                  <th>做多 (+1)</th>
+                  <th>做空 (-1)</th>
+                  <th>淨值</th>
+                  <th>是否空手?</th>
+                  <th>歷史紀錄 (時間)</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,16 +165,16 @@ const SummaryScreen = ({ state, onReset, role }) => {
                     </td>
                     <td>
                       {user.sum === 0 ? (
-                        <span className="badge success">Yes</span>
+                        <span className="badge success">是</span>
                       ) : (
-                        <span className="badge danger">No</span>
+                        <span className="badge danger">否</span>
                       )}
                     </td>
                     <td className="history-cell">
                       <div className="history-list">
                         {user.history.map((h, i) => (
                           <span key={i} className={`history-item ${h.val > 0 ? 'plus' : 'minus'}`}>
-                            {h.val > 0 ? 'Top' : 'Btm'} @ {formatTime(h.exactMs)}
+                            {h.val > 0 ? '做多' : '做空'} @ {formatTime(h.exactMs)}
                           </span>
                         ))}
                       </div>
@@ -193,7 +193,7 @@ const SummaryScreen = ({ state, onReset, role }) => {
                 下載 Excel (.xlsx)
               </button>
               <button className="btn btn-primary" onClick={onReset}>
-                Reset Timeline for New Session
+                重置時間線（開始新場次）
               </button>
             </>
           ) : (
@@ -201,7 +201,7 @@ const SummaryScreen = ({ state, onReset, role }) => {
               <button className="btn btn-secondary" onClick={handleDownloadExcel} disabled={summary.length === 0}>
                 下載 Excel (.xlsx)
               </button>
-              <p className="waiting-text" style={{ alignSelf: 'center', margin: 0 }}>Waiting for Host to reset...</p>
+              <p className="waiting-text" style={{ alignSelf: 'center', margin: 0 }}>等待主機 (Host) 重置...</p>
             </>
           )}
         </div>

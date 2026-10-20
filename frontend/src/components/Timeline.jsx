@@ -138,7 +138,7 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
         className={`interaction-area left-area ${state.status === 'running' && onTimelineClick ? 'active' : ''}`}
         onClick={() => handleAreaClick(1)}
       >
-        {state.status === 'running' && onTimelineClick && <div className="area-hint">點擊 (+1)</div>}
+        {state.status === 'running' && onTimelineClick && <div className="area-hint">做多 (+1)</div>}
       </div>
 
       {/* The Central Timeline Bar */}
@@ -182,7 +182,7 @@ const Timeline = ({ state, guestName, isHost, onTimelineClick }) => {
         className={`interaction-area right-area ${state.status === 'running' && onTimelineClick ? 'active' : ''}`}
         onClick={() => handleAreaClick(-1)}
       >
-        {state.status === 'running' && onTimelineClick && <div className="area-hint">點擊 (-1)</div>}
+        {state.status === 'running' && onTimelineClick && <div className="area-hint">做空 (-1)</div>}
       </div>
       
     </div>
