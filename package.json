@@ -2,7 +2,7 @@
   "name": "timeline-app-root",
   "version": "1.0.0",
   "scripts": {
-    "install": "cd backend && npm install && cd ../frontend && npm install",
+    "install": "cd backend && npm install --no-audit --no-fund && cd ../frontend && npm install --no-audit --no-fund",
     "build": "cd frontend && npm run build",
     "start": "cd backend && node server.js"
   }
