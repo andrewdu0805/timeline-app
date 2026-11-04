@@ -22,12 +22,16 @@ let state = {
   speed: 1, // 1, 2, 3
   elapsedTimeMs: 0,
   clicks: [], // { name, val, exactMs }
-  guests: [], // { id, name, device }
+  guests: [], // { id, clientId, name, device, isOnline }
   videoId: '', // YouTube video ID
 };
 
 let tickInterval = null;
 let lastTickTime = Date.now();
+
+// Disconnect grace timers (key: clientId or name, value: Timeout)
+const disconnectTimers = new Map();
+const GRACE_PERIOD_MS = 90000; // 90 seconds grace period for mobile app-switching / screen lock
 
 const broadcastState = () => {
   io.emit('state_update', state);
@@ -176,16 +180,91 @@ io.on('connection', (socket) => {
   });
 
   // Guest Events
-  socket.on('join_as_guest', ({ name, device }) => {
-    // Remove if socket id already exists just in case
-    state.guests = state.guests.filter(g => g.id !== socket.id);
-    state.guests.push({ id: socket.id, name, device });
+  socket.on('join_as_guest', ({ name, device, clientId }) => {
+    const cId = clientId || socket.id;
+    socket.clientId = cId;
+    socket.guestName = name;
+
+    // Clear any pending disconnect timer for this guest
+    if (disconnectTimers.has(cId)) {
+      clearTimeout(disconnectTimers.get(cId));
+      disconnectTimers.delete(cId);
+    }
+    if (name && disconnectTimers.has(name)) {
+      clearTimeout(disconnectTimers.get(name));
+      disconnectTimers.delete(name);
+    }
+
+    // Match by clientId or name
+    const existingIndex = state.guests.findIndex(
+      g => (g.clientId && g.clientId === cId) || g.name === name
+    );
+
+    if (existingIndex !== -1) {
+      state.guests[existingIndex] = {
+        id: socket.id,
+        clientId: cId,
+        name,
+        device: device || state.guests[existingIndex].device,
+        isOnline: true
+      };
+    } else {
+      state.guests.push({
+        id: socket.id,
+        clientId: cId,
+        name,
+        device,
+        isOnline: true
+      });
+    }
+
+    broadcastState();
+  });
+
+  socket.on('leave_guest', () => {
+    const cId = socket.clientId || socket.id;
+    const name = socket.guestName;
+    if (disconnectTimers.has(cId)) {
+      clearTimeout(disconnectTimers.get(cId));
+      disconnectTimers.delete(cId);
+    }
+    if (name && disconnectTimers.has(name)) {
+      clearTimeout(disconnectTimers.get(name));
+      disconnectTimers.delete(name);
+    }
+    state.guests = state.guests.filter(
+      g => g.id !== socket.id && (!cId || g.clientId !== cId) && (!name || g.name !== name)
+    );
     broadcastState();
   });
 
   socket.on('disconnect', () => {
-    state.guests = state.guests.filter(g => g.id !== socket.id);
-    broadcastState();
+    const cId = socket.clientId || socket.id;
+    const name = socket.guestName;
+    const guest = state.guests.find(
+      g => g.id === socket.id || (cId && g.clientId === cId) || (name && g.name === name)
+    );
+
+    if (guest) {
+      // Mark as temporarily offline instead of deleting immediately
+      guest.isOnline = false;
+
+      const timerKey = cId || name || socket.id;
+      if (disconnectTimers.has(timerKey)) {
+        clearTimeout(disconnectTimers.get(timerKey));
+      }
+
+      const timer = setTimeout(() => {
+        disconnectTimers.delete(timerKey);
+        state.guests = state.guests.filter(
+          g => g !== guest && g.id !== socket.id && (!cId || g.clientId !== cId) && (!name || g.name !== name)
+        );
+        broadcastState();
+      }, GRACE_PERIOD_MS);
+
+      disconnectTimers.set(timerKey, timer);
+      // We do NOT broadcast immediate removal, so guest count does NOT drop during mobile app switching
+    }
   });
 
   socket.on('register_click', ({ name, val }) => {

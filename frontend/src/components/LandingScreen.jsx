@@ -1,14 +1,8 @@
 import React, { useState } from 'react';
+import { getDeviceType, getClientId } from '../App';
 
 const LandingScreen = ({ socket, setRole, setGuestName }) => {
   const [nameInput, setNameInput] = useState('');
-
-  const getDeviceType = () => {
-    const ua = navigator.userAgent;
-    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'Tablet';
-    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'Mobile';
-    return 'Desktop';
-  };
 
   const handleJoinGuest = (e) => {
     e.preventDefault();
@@ -16,7 +10,13 @@ const LandingScreen = ({ socket, setRole, setGuestName }) => {
     if (name) {
       setGuestName(name);
       setRole('guest');
-      if (socket) socket.emit('join_as_guest', { name, device: getDeviceType() });
+      if (socket) {
+        socket.emit('join_as_guest', { 
+          name, 
+          device: getDeviceType(), 
+          clientId: getClientId() 
+        });
+      }
     }
   };
 
@@ -30,13 +30,13 @@ const LandingScreen = ({ socket, setRole, setGuestName }) => {
           <form className="guest-form" onSubmit={handleJoinGuest}>
             <input 
               type="text" 
-              placeholder="Enter your name" 
+              placeholder="輸入您的名字" 
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
               required
               className="glass-input"
             />
-            <button type="submit" className="btn btn-primary">Join as Guest</button>
+            <button type="submit" className="btn btn-primary">以 Guest 身分加入</button>
           </form>
 
           <div className="divider">
@@ -47,7 +47,7 @@ const LandingScreen = ({ socket, setRole, setGuestName }) => {
             className="btn btn-secondary" 
             onClick={() => setRole('host')}
           >
-            Create as Host
+            以 Host 主機建立
           </button>
         </div>
       </div>

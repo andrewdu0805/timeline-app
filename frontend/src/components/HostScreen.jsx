@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Timeline, { useLocalTime, formatTime } from './Timeline';
 import VideoPlayer from './VideoPlayer';
 
-const HostScreen = ({ socket, state }) => {
+const HostScreen = ({ socket, state, onLogout }) => {
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [clickEffect, setClickEffect] = useState(null);
   const localTimeMs = useLocalTime(state);
@@ -66,7 +66,27 @@ const HostScreen = ({ socket, state }) => {
   return (
     <div className={`screen-container host-screen ${clickEffect || ''}`}>
       <div className="host-dashboard glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-        <h2 style={{ fontSize: '1.1rem', margin: 0, marginRight: '0.5rem' }}>Host Control Panel</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem' }}>
+          <h2 style={{ fontSize: '1.1rem', margin: 0 }}>Host Control Panel</h2>
+          {onLogout && (
+            <button 
+              onClick={onLogout}
+              title="退出主機身分"
+              style={{ 
+                background: 'rgba(255,255,255,0.1)', 
+                border: '1px solid rgba(255,255,255,0.2)', 
+                color: 'var(--text-secondary)', 
+                cursor: 'pointer', 
+                fontSize: '0.72rem',
+                padding: '1px 6px',
+                borderRadius: '4px',
+                lineHeight: '1.4'
+              }}
+            >
+              退出
+            </button>
+          )}
+        </div>
         
         <div className="control-group">
           <label>Duration:</label>
@@ -145,7 +165,7 @@ const HostScreen = ({ socket, state }) => {
         {state.guests && state.guests.length > 0 && (
           <div 
             className="guest-summary" 
-            title={state.guests.map(g => `${g.name} (${g.device})`).join('\n')}
+            title={state.guests.map(g => `${g.name} (${g.device})${g.isOnline === false ? ' [切換網頁中]' : ''}`).join('\n')}
             style={{ 
               cursor: 'help', display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.1)', 
               padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.9rem', marginLeft: 'auto',

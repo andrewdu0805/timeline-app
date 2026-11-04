@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import Timeline, { useLocalTime, formatTime } from './Timeline';
 import VideoPlayer from './VideoPlayer';
+import { getDeviceType } from '../App';
 
-const GuestScreen = ({ socket, state, guestName }) => {
+const GuestScreen = ({ socket, state, guestName, onLogout }) => {
   const [clickEffect, setClickEffect] = useState(null);
   const localTimeMs = useLocalTime(state);
 
@@ -18,12 +19,6 @@ const GuestScreen = ({ socket, state, guestName }) => {
   const handleResume = () => socket.emit('resume_timeline');
   const handleSeek = (ms) => socket.emit('seek_timeline', ms);
 
-  const getDeviceType = () => {
-    const ua = navigator.userAgent;
-    if (/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i.test(ua)) return 'Tablet';
-    if (/Mobile|Android|iP(hone|od)|IEMobile|BlackBerry|Kindle|Silk-Accelerated|(hpw|web)OS|Opera M(obi|ini)/.test(ua)) return 'Mobile';
-    return 'Desktop';
-  };
   const isMobilePhone = getDeviceType() === 'Mobile';
 
   const myClicks = state.clicks.filter(c => c.name === guestName);
@@ -44,8 +39,26 @@ const GuestScreen = ({ socket, state, guestName }) => {
         
         {/* Group 1: User, Video Link & Clock */}
         <div className="guest-header-group">
-          <div className="user-info" style={{ fontSize: '0.95rem' }}>
-            名字: <span>{guestName}</span>
+          <div className="user-info" style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span>名字: <span>{guestName}</span></span>
+            {onLogout && (
+              <button 
+                onClick={onLogout}
+                title="退出房間 / 更換名稱"
+                style={{ 
+                  background: 'rgba(255,255,255,0.1)', 
+                  border: '1px solid rgba(255,255,255,0.2)', 
+                  color: 'var(--text-secondary)', 
+                  cursor: 'pointer', 
+                  fontSize: '0.72rem',
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  lineHeight: '1.4'
+                }}
+              >
+                退出
+              </button>
+            )}
           </div>
 
           {state.videoId ? (
@@ -101,7 +114,7 @@ const GuestScreen = ({ socket, state, guestName }) => {
           
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
             {state.guests && state.guests.length > 0 && (
-              <div title={state.guests.map(g => `${g.name} (${g.device})`).join('\n')}
+              <div title={state.guests.map(g => `${g.name} (${g.device})${g.isOnline === false ? ' [切換網頁中]' : ''}`).join('\n')}
                 style={{ cursor: 'help', display: 'flex', gap: '0.3rem', background: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem', border: '1px solid rgba(255,255,255,0.2)' }}>
                 <span>👥 {state.guests.length}</span>
                 <span style={{opacity: 0.8}}>({[

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import * as XLSX from 'xlsx';
 
-const SummaryScreen = ({ state, onReset, role }) => {
+const SummaryScreen = ({ state, onReset, role, onLogout }) => {
   // Aggregate clicks by user, ensuring all active guests are included
   const summary = useMemo(() => {
     const userStats = {};
@@ -186,7 +186,7 @@ const SummaryScreen = ({ state, onReset, role }) => {
           </div>
         )}
 
-        <div className="summary-actions" style={{ gap: '1rem' }}>
+        <div className="summary-actions" style={{ gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {role === 'host' ? (
             <>
               <button className="btn btn-secondary" onClick={handleDownloadExcel} disabled={summary.length === 0}>
@@ -195,6 +195,11 @@ const SummaryScreen = ({ state, onReset, role }) => {
               <button className="btn btn-primary" onClick={onReset}>
                 重置時間線（開始新場次）
               </button>
+              {onLogout && (
+                <button className="btn btn-secondary" onClick={onLogout} style={{ opacity: 0.8 }}>
+                  退出
+                </button>
+              )}
             </>
           ) : (
             <>
@@ -202,6 +207,11 @@ const SummaryScreen = ({ state, onReset, role }) => {
                 下載 Excel (.xlsx)
               </button>
               <p className="waiting-text" style={{ alignSelf: 'center', margin: 0 }}>等待主機 (Host) 重置...</p>
+              {onLogout && (
+                <button className="btn btn-secondary" onClick={onLogout} style={{ opacity: 0.8 }}>
+                  退出
+                </button>
+              )}
             </>
           )}
         </div>
