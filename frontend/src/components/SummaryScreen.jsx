@@ -60,8 +60,8 @@ const SummaryScreen = ({ state, onReset, role, onLogout }) => {
       
       // Rows 4 to maxRows + 3
       for (let i = 0; i < maxRows; i++) {
-        const topStr = i < topClicks.length ? `+${topClicks[i].val} @ ${formatTime(topClicks[i].exactMs)}` : "";
-        const btmStr = i < bottomClicks.length ? `${bottomClicks[i].val} @ ${formatTime(bottomClicks[i].exactMs)}` : "";
+        const topStr = i < topClicks.length ? `+${topClicks[i].val}${topClicks[i].isClose ? '(平倉)' : ''} @ ${formatTime(topClicks[i].exactMs)}` : "";
+        const btmStr = i < bottomClicks.length ? `${bottomClicks[i].val}${bottomClicks[i].isClose ? '(平倉)' : ''} @ ${formatTime(bottomClicks[i].exactMs)}` : "";
         
         if (i === 0) {
           // First row contains the summary stats
@@ -174,7 +174,10 @@ const SummaryScreen = ({ state, onReset, role, onLogout }) => {
                       <div className="history-list">
                         {user.history.map((h, i) => (
                           <span key={i} className={`history-item ${h.val > 0 ? 'plus' : 'minus'}`}>
-                            {h.val > 0 ? '做多' : '做空'} @ {formatTime(h.exactMs)}
+                            {h.val > 0
+                              ? `做多${Math.abs(h.val) > 1 ? `(+${h.val})` : ''}${h.isClose ? '[平倉]' : ''}`
+                              : `做空${Math.abs(h.val) > 1 ? `(${h.val})` : ''}${h.isClose ? '[平倉]' : ''}`
+                            } @ {formatTime(h.exactMs)}
                           </span>
                         ))}
                       </div>

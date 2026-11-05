@@ -565,7 +565,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('register_click', ({ name, val }) => {
+  socket.on('register_click', ({ name, val, isClose }) => {
     const room = getSocketRoom();
     if (room.status === 'running') {
       const now = Date.now();
@@ -575,7 +575,7 @@ io.on('connection', (socket) => {
       const maxMs = room.durationMinutes * 60 * 1000;
       const finalMs = Math.min(exactMs, maxMs);
 
-      const clickData = { name, val, exactMs: finalMs };
+      const clickData = { name, val, exactMs: finalMs, ...(isClose ? { isClose: true } : {}) };
       room.clicks.push(clickData);
       io.to(`room_${room.roomId}`).emit('new_click', clickData);
     }

@@ -211,7 +211,7 @@ const ClusterNode = ({ cluster, isPlus, percent, guestName }) => {
         <div className="marker-label" onClick={toggle} style={{ cursor: 'pointer' }}>
           <span className="marker-name" style={{ color: cluster.isMe ? '#facc15' : 'inherit' }}>{cluster.clicks[0].name}</span>
           <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`}>
-            {isPlus ? `+${cluster.clicks[0].val}` : cluster.clicks[0].val}
+            {isPlus ? `+${cluster.clicks[0].val}` : cluster.clicks[0].val}{cluster.clicks[0].isClose ? ' (平倉)' : ''}
           </span>
           <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8, marginTop: '2px' }}>
             {formatTime(cluster.clicks[0].exactMs)}
@@ -231,7 +231,7 @@ const ClusterNode = ({ cluster, isPlus, percent, guestName }) => {
                   <span className="marker-time" style={{ fontSize: '0.65rem', opacity: 0.8 }}>{formatTime(c.exactMs)}</span>
                 </div>
                 <span className={`marker-val ${isPlus ? 'plus' : 'minus'}`} style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>
-                  {isPlus ? `+${c.val}` : c.val}
+                  {isPlus ? `+${c.val}` : c.val}{c.isClose ? ' (平倉)' : ''}
                 </span>
               </div>
             ))}

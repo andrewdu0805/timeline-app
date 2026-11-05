@@ -26,6 +26,15 @@ const GuestScreen = ({ socket, state, guestName, onLogout, roomsList = [], onSwi
   const myMinus = myClicks.filter(c => c.val < 0).reduce((sum, c) => sum + Math.abs(c.val), 0);
   const myBalance = myPlus - myMinus;
 
+  const handleClosePosition = () => {
+    if (state.status === 'running' && myBalance !== 0) {
+      const closeVal = -myBalance;
+      socket.emit('register_click', { name: guestName, val: closeVal, isClose: true });
+      setClickEffect(closeVal > 0 ? 'effect-left' : 'effect-right');
+      setTimeout(() => setClickEffect(null), 300);
+    }
+  };
+
   const statusMap = {
     idle: '等待中',
     running: '進行中',
@@ -136,6 +145,30 @@ const GuestScreen = ({ socket, state, guestName, onLogout, roomsList = [], onSwi
               <span style={{ fontWeight: 'bold', marginLeft: '0.2rem', color: myBalance === 0 ? 'var(--text-primary)' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
                 {myBalance === 0 ? '✅ 空手' : `${myBalance > 0 ? '多單: +' : '空單: '}${myBalance}`}
               </span>
+              {myBalance !== 0 && (
+                <button
+                  type="button"
+                  onClick={handleClosePosition}
+                  disabled={state.status !== 'running'}
+                  title="一鍵平倉（直接轉為空手 0）"
+                  style={{
+                    marginLeft: '0.2rem',
+                    padding: '2px 8px',
+                    fontSize: '0.78rem',
+                    fontWeight: 'bold',
+                    color: '#fff',
+                    background: state.status === 'running' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(255,255,255,0.15)',
+                    border: '1px solid rgba(251, 191, 36, 0.7)',
+                    borderRadius: '4px',
+                    cursor: state.status === 'running' ? 'pointer' : 'not-allowed',
+                    boxShadow: state.status === 'running' ? '0 2px 6px rgba(245, 158, 11, 0.35)' : 'none',
+                    lineHeight: '1.3',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  平倉
+                </button>
+              )}
             </div>
           )}
           

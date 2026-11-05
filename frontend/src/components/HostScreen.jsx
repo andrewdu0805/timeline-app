@@ -63,6 +63,15 @@ const HostScreen = ({ socket, state, onLogout }) => {
   const myMinus = myClicks.filter(c => c.val < 0).reduce((sum, c) => sum + Math.abs(c.val), 0);
   const myBalance = myPlus - myMinus;
 
+  const handleClosePosition = () => {
+    if (state.status === 'running' && myBalance !== 0) {
+      const closeVal = -myBalance;
+      socket.emit('register_click', { name: 'Host', val: closeVal, isClose: true });
+      setClickEffect(closeVal > 0 ? 'effect-left' : 'effect-right');
+      setTimeout(() => setClickEffect(null), 300);
+    }
+  };
+
   return (
     <div className={`screen-container host-screen ${clickEffect || ''}`}>
       <div className="host-dashboard glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
@@ -146,6 +155,30 @@ const HostScreen = ({ socket, state, onLogout }) => {
             <span style={{ fontWeight: 'bold', marginLeft: '0.5rem', color: myBalance === 0 ? 'var(--text-primary)' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
               {myBalance === 0 ? '✅ 空手' : `${myBalance > 0 ? '多單: +' : '空單: '}${myBalance}`}
             </span>
+            {myBalance !== 0 && (
+              <button
+                type="button"
+                onClick={handleClosePosition}
+                disabled={state.status !== 'running'}
+                title="一鍵平倉（直接轉為空手 0）"
+                style={{
+                  marginLeft: '0.3rem',
+                  padding: '2px 9px',
+                  fontSize: '0.82rem',
+                  fontWeight: 'bold',
+                  color: '#fff',
+                  background: state.status === 'running' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(255,255,255,0.15)',
+                  border: '1px solid rgba(251, 191, 36, 0.7)',
+                  borderRadius: '4px',
+                  cursor: state.status === 'running' ? 'pointer' : 'not-allowed',
+                  boxShadow: state.status === 'running' ? '0 2px 6px rgba(245, 158, 11, 0.35)' : 'none',
+                  lineHeight: '1.3',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                平倉
+              </button>
+            )}
           </div>
         )}
 
