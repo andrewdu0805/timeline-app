@@ -26,6 +26,8 @@ const createRoomObject = (roomId) => ({
   roomId: String(roomId),
   roomName: `教室 ${roomId}`,
   hostClientId: null,
+  lastHostClientId: null,
+  everHosted: false,
   hostSocketId: null,
   hostOnline: false,
   status: 'idle', // idle, running, paused, finished
@@ -101,19 +103,32 @@ const broadcastAllRoomsSummary = () => {
   }
 };
 
-// Clean up extra empty rooms (roomId !== '1') when they have no host, no guests, and are idle
+// Remove rooms that have no Host and no Guests.
+// The only exception is a "placeholder" room that has never been hosted (lobby for early guests).
 const cleanupEmptyRooms = () => {
   let removed = false;
   for (const [id, room] of rooms.entries()) {
-    if (id !== '1' && !room.hostClientId && room.guests.length === 0 && room.status === 'idle') {
+    if (room.everHosted && !room.hostClientId && room.guests.length === 0) {
       if (room.tickInterval) clearInterval(room.tickInterval);
       rooms.delete(id);
       removed = true;
     }
   }
+  // Always keep at least one room available so early guests have somewhere to wait
+  if (rooms.size === 0) {
+    getOrCreateRoom('1');
+    removed = true;
+  }
   if (removed) {
     broadcastAllRoomsSummary();
   }
+};
+
+// Returns the first room (lowest number), creating a placeholder if none exist
+const getFirstRoom = () => {
+  if (rooms.size === 0) return getOrCreateRoom('1');
+  const firstId = Array.from(rooms.keys()).sort((a, b) => Number(a) - Number(b))[0];
+  return rooms.get(firstId);
 };
 
 const startRoomTick = (room) => {
@@ -156,13 +171,16 @@ const removeGuestFromRoom = (room, socketId, clientId, name) => {
 };
 
 io.on('connection', (socket) => {
-  // Default new connections to Classroom 1 view so LandingScreen gets roomsList immediately
-  const defaultRoom = getOrCreateRoom('1');
+  // Send the first available classroom view so LandingScreen gets roomsList immediately
+  const defaultRoom = getFirstRoom();
   socket.emit('state_update', serializeRoomState(defaultRoom));
   socket.emit('rooms_list_update', getRoomsList());
 
-  // Host joins or creates a classroom automatically
-  socket.on('join_as_host', ({ clientId, preferredRoomId } = {}) => {
+  // Host joins a classroom.
+  // - forceNew = true  (user pressed "以 Host 主機建立"): ALWAYS open a brand-new classroom
+  //   (the only exception: an un-hosted placeholder lobby where early guests are already waiting).
+  // - forceNew = false (auto-rejoin after refresh / reconnect / app switch): return to own classroom.
+  socket.on('join_as_host', ({ clientId, preferredRoomId, forceNew } = {}) => {
     const cId = clientId || socket.id;
     socket.clientId = cId;
     socket.role = 'host';
@@ -175,36 +193,38 @@ io.on('connection', (socket) => {
     }
 
     let targetRoom = null;
+    const prefId = preferredRoomId ? String(preferredRoomId) : null;
+    const prefRoom = prefId && rooms.has(prefId) ? rooms.get(prefId) : null;
 
-    // 1. Check if this Host already owns an existing classroom (e.g. page refresh / reconnect)
-    for (const r of rooms.values()) {
-      if (r.hostClientId === cId) {
-        targetRoom = r;
-        break;
-      }
-    }
-
-    // 2. If a preferredRoomId was specified and it has no active host, use it
-    if (!targetRoom && preferredRoomId && rooms.has(String(preferredRoomId))) {
-      const prefRoom = rooms.get(String(preferredRoomId));
-      if (!prefRoom.hostClientId || prefRoom.hostClientId === cId) {
-        targetRoom = prefRoom;
-      }
-    }
-
-    // 3. Otherwise, find the first existing classroom without a Host (starting with Classroom 1)
-    if (!targetRoom) {
+    if (forceNew) {
+      // Claim a never-hosted placeholder lobby (e.g. Classroom 1 with early guests waiting)
       const sortedIds = Array.from(rooms.keys()).sort((a, b) => Number(a) - Number(b));
       for (const id of sortedIds) {
         const r = rooms.get(id);
-        if (!r.hostClientId) {
+        if (!r.everHosted && !r.hostClientId) {
           targetRoom = r;
           break;
         }
       }
+    } else {
+      // Rejoin: 1) preferred room I own  2) any room I own  3) my own room after grace expired
+      if (prefRoom && prefRoom.hostClientId === cId) {
+        targetRoom = prefRoom;
+      }
+      if (!targetRoom) {
+        for (const r of rooms.values()) {
+          if (r.hostClientId === cId) {
+            targetRoom = r;
+            break;
+          }
+        }
+      }
+      if (!targetRoom && prefRoom && !prefRoom.hostClientId && prefRoom.lastHostClientId === cId) {
+        targetRoom = prefRoom;
+      }
     }
 
-    // 4. If all existing classrooms already have a Host, open a new classroom (next number)
+    // Otherwise open a brand-new classroom (next free number)
     if (!targetRoom) {
       let nextNum = 1;
       while (rooms.has(String(nextNum))) {
@@ -219,8 +239,10 @@ io.on('connection', (socket) => {
     }
 
     targetRoom.hostClientId = cId;
+    targetRoom.lastHostClientId = cId;
     targetRoom.hostSocketId = socket.id;
     targetRoom.hostOnline = true;
+    targetRoom.everHosted = true;
     socket.roomId = targetRoom.roomId;
     socket.join(`room_${targetRoom.roomId}`);
 
@@ -252,13 +274,15 @@ io.on('connection', (socket) => {
 
   // Helper to get the socket's current room
   const getSocketRoom = () => {
-    const rId = String(socket.roomId || '1');
-    return getOrCreateRoom(rId);
+    // Only act on a classroom the socket has actually joined (never auto-create one here)
+    if (!socket.roomId) return null;
+    return rooms.get(String(socket.roomId)) || null;
   };
 
   // Host Control Events (scoped to the Host/Guest's current classroom)
   socket.on('set_video_id', (id) => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status === 'idle') {
       room.videoId = id;
       broadcastAllRoomsSummary();
@@ -267,6 +291,7 @@ io.on('connection', (socket) => {
 
   socket.on('set_video_metadata', ({ minutes, title }) => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status === 'idle') {
       room.durationMinutes = Math.max(1, minutes);
       if (title) {
@@ -278,6 +303,7 @@ io.on('connection', (socket) => {
 
   socket.on('start_timeline', () => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status === 'idle') {
       room.status = 'running';
       startRoomTick(room);
@@ -287,6 +313,7 @@ io.on('connection', (socket) => {
 
   socket.on('pause_timeline', () => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status === 'running') {
       room.status = 'paused';
       const now = Date.now();
@@ -302,6 +329,7 @@ io.on('connection', (socket) => {
 
   socket.on('resume_timeline', () => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status === 'paused') {
       room.status = 'running';
       startRoomTick(room);
@@ -311,6 +339,7 @@ io.on('connection', (socket) => {
 
   socket.on('seek_timeline', (offsetMs) => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status !== 'idle') {
       if (room.status === 'running') {
         const now = Date.now();
@@ -337,6 +366,7 @@ io.on('connection', (socket) => {
 
   socket.on('set_speed', (speed) => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status === 'running' || room.status === 'idle' || room.status === 'paused') {
       room.speed = speed;
       if (room.status === 'running') {
@@ -351,6 +381,7 @@ io.on('connection', (socket) => {
 
   socket.on('end_timeline', () => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status === 'running' || room.status === 'paused') {
       if (room.status === 'running') {
         const now = Date.now();
@@ -368,6 +399,7 @@ io.on('connection', (socket) => {
 
   socket.on('reset', () => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.tickInterval) {
       clearInterval(room.tickInterval);
       room.tickInterval = null;
@@ -567,6 +599,7 @@ io.on('connection', (socket) => {
 
   socket.on('register_click', ({ name, val, isClose }) => {
     const room = getSocketRoom();
+    if (!room) return;
     if (room.status === 'running') {
       const now = Date.now();
       const delta = now - room.lastTickTime;

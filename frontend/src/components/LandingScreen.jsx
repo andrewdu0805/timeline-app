@@ -33,7 +33,8 @@ const LandingScreen = ({ socket, setRole, setGuestName, selectedRoomId = '1', se
   const handleJoinHost = () => {
     if (socket) {
       socket.emit('join_as_host', {
-        clientId: getClientId()
+        clientId: getClientId(),
+        forceNew: true // every press of the Host button opens a brand-new classroom
       });
     }
     setRole('host');
