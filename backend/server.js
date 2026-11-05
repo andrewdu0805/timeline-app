@@ -21,6 +21,7 @@ const rooms = new Map();
 // Disconnect grace timers (key: `${roomId}:${clientId}` or `host:${clientId}`, value: Timeout)
 const disconnectTimers = new Map();
 const GRACE_PERIOD_MS = 90000; // 90 seconds grace period for mobile app-switching / screen lock
+const MAX_ROOMS = 5; // Maximum number of classrooms open at the same time
 
 const createRoomObject = (roomId) => ({
   roomId: String(roomId),
@@ -86,6 +87,7 @@ const serializeRoomState = (room) => ({
   guests: room.guests,
   videoId: room.videoId,
   videoTitle: room.videoTitle,
+  maxRooms: MAX_ROOMS,
   roomsList: getRoomsList()
 });
 
@@ -180,7 +182,8 @@ io.on('connection', (socket) => {
   // - forceNew = true  (user pressed "以 Host 主機建立"): ALWAYS open a brand-new classroom
   //   (the only exception: an un-hosted placeholder lobby where early guests are already waiting).
   // - forceNew = false (auto-rejoin after refresh / reconnect / app switch): return to own classroom.
-  socket.on('join_as_host', ({ clientId, preferredRoomId, forceNew } = {}) => {
+  socket.on('join_as_host', ({ clientId, preferredRoomId, forceNew } = {}, ack) => {
+    const reply = typeof ack === 'function' ? ack : () => {};
     const cId = clientId || socket.id;
     socket.clientId = cId;
     socket.role = 'host';
@@ -224,8 +227,15 @@ io.on('connection', (socket) => {
       }
     }
 
-    // Otherwise open a brand-new classroom (next free number)
+    // Otherwise open a brand-new classroom (next free number) — unless the classroom limit is reached
     if (!targetRoom) {
+      if (rooms.size >= MAX_ROOMS) {
+        socket.role = null;
+        const payload = { ok: false, reason: 'full', maxRooms: MAX_ROOMS, roomsList: getRoomsList() };
+        socket.emit('rooms_full', payload);
+        reply(payload);
+        return;
+      }
       let nextNum = 1;
       while (rooms.has(String(nextNum))) {
         nextNum++;
@@ -247,6 +257,7 @@ io.on('connection', (socket) => {
     socket.join(`room_${targetRoom.roomId}`);
 
     socket.emit('room_assigned', { roomId: targetRoom.roomId, roomName: targetRoom.roomName });
+    reply({ ok: true, roomId: targetRoom.roomId, roomName: targetRoom.roomName });
     broadcastAllRoomsSummary();
   });
 

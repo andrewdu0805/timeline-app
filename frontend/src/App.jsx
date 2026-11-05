@@ -65,6 +65,9 @@ function App() {
     { roomId: '1', roomName: '教室 1', hasHost: false, guestCount: 0, status: 'idle' }
   ]);
 
+  // Set when a Host tried to open a classroom but the limit was reached
+  const [roomsFullNotice, setRoomsFullNotice] = useState(null);
+
   const [gameState, setGameState] = useState({
     roomId: '1',
     roomName: '教室 1',
@@ -205,6 +208,18 @@ function App() {
       }
     });
 
+    // Classroom limit reached: send this would-be Host back to the landing page to pick an existing classroom
+    socket.on('rooms_full', (payload) => {
+      if (payload && Array.isArray(payload.roomsList)) {
+        setRoomsList(payload.roomsList);
+      }
+      setRoomsFullNotice({ maxRooms: (payload && payload.maxRooms) || 5 });
+      setRole(null);
+      try {
+        localStorage.removeItem('timeline_role');
+      } catch (e) {}
+    });
+
     socket.on('new_click', (clickData) => {
       setGameState((prev) => {
         const exists = prev.clicks.some(
@@ -222,6 +237,7 @@ function App() {
       socket.off('state_update');
       socket.off('rooms_list_update');
       socket.off('room_assigned');
+      socket.off('rooms_full');
       socket.off('new_click');
     };
   }, []);
@@ -235,6 +251,9 @@ function App() {
         selectedRoomId={roomId}
         setSelectedRoomId={handleSetRoomId}
         roomsList={roomsList}
+        roomsFullNotice={roomsFullNotice}
+        setRoomsFullNotice={setRoomsFullNotice}
+        maxRooms={gameState.maxRooms || 5}
       />
     );
   }
