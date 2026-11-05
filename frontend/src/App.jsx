@@ -27,7 +27,6 @@ export const getClientId = () => {
 };
 
 // Connect to backend dynamically based on the URL the user is visiting
-// In production (Render), we connect to the same origin (/). In local dev, we connect to port 3001.
 const socketUrl = import.meta.env.PROD ? '/' : `http://${window.location.hostname}:3001`;
 const socket = io(socketUrl, {
   reconnection: true,
@@ -54,12 +53,28 @@ function App() {
     }
   });
 
+  const [roomId, setRoomId] = useState(() => {
+    try {
+      return localStorage.getItem('timeline_room_id') || '1';
+    } catch (e) {
+      return '1';
+    }
+  });
+
+  const [roomsList, setRoomsList] = useState([
+    { roomId: '1', roomName: '教室 1', hasHost: false, guestCount: 0, status: 'idle' }
+  ]);
+
   const [gameState, setGameState] = useState({
+    roomId: '1',
+    roomName: '教室 1',
     status: 'idle',
     durationMinutes: 120,
     speed: 1,
     elapsedTimeMs: 0,
-    clicks: []
+    clicks: [],
+    guests: [],
+    roomsList: []
   });
 
   const handleSetRole = (newRole) => {
@@ -84,16 +99,36 @@ function App() {
     } catch (e) {}
   };
 
+  const handleSetRoomId = (newRoomId) => {
+    const rId = String(newRoomId || '1');
+    setRoomId(rId);
+    try {
+      localStorage.setItem('timeline_room_id', rId);
+    } catch (e) {}
+  };
+
+  const handleSwitchRoom = (targetRoomId) => {
+    const rId = String(targetRoomId);
+    handleSetRoomId(rId);
+    if (role === 'guest') {
+      socket.emit('switch_room', { roomId: rId });
+    }
+  };
+
   const handleLogout = () => {
     if (role === 'guest') {
       socket.emit('leave_guest');
+    } else if (role === 'host') {
+      socket.emit('leave_host');
     }
     try {
       localStorage.removeItem('timeline_role');
       localStorage.removeItem('timeline_guest_name');
+      localStorage.removeItem('timeline_room_id');
     } catch (e) {}
     setRole(null);
     setGuestName('');
+    setRoomId('1');
   };
 
   // Auto re-join whenever socket connects / reconnects, or user returns to tab (visibility change / focus)
@@ -106,15 +141,23 @@ function App() {
         socket.emit('join_as_guest', {
           name: guestName,
           device: getDeviceType(),
-          clientId: getClientId()
+          clientId: getClientId(),
+          roomId
+        });
+      } else if (role === 'host') {
+        if (!socket.connected) {
+          socket.connect();
+        }
+        socket.emit('join_as_host', {
+          clientId: getClientId(),
+          preferredRoomId: roomId
         });
       }
     };
 
     socket.on('connect', handleRejoin);
 
-    // If socket is already connected when component mounts with saved credentials
-    if (socket.connected && role === 'guest' && guestName) {
+    if (socket.connected && (role === 'host' || (role === 'guest' && guestName))) {
       handleRejoin();
     }
 
@@ -136,16 +179,34 @@ function App() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [role, guestName]);
+  }, [role, guestName, roomId]);
 
   useEffect(() => {
     socket.on('state_update', (newState) => {
       setGameState((prev) => ({ ...prev, ...newState }));
+      if (newState.roomsList && Array.isArray(newState.roomsList)) {
+        setRoomsList(newState.roomsList);
+      }
+      if (newState.roomId) {
+        handleSetRoomId(newState.roomId);
+      }
+    });
+
+    socket.on('rooms_list_update', (list) => {
+      if (Array.isArray(list)) {
+        setRoomsList(list);
+        setGameState((prev) => ({ ...prev, roomsList: list }));
+      }
+    });
+
+    socket.on('room_assigned', ({ roomId: assignedId }) => {
+      if (assignedId) {
+        handleSetRoomId(assignedId);
+      }
     });
 
     socket.on('new_click', (clickData) => {
       setGameState((prev) => {
-        // Only append if it's not already in the array
         const exists = prev.clicks.some(
           (c) => c.name === clickData.name && c.exactMs === clickData.exactMs && c.val === clickData.val
         );
@@ -159,17 +220,21 @@ function App() {
 
     return () => {
       socket.off('state_update');
+      socket.off('rooms_list_update');
+      socket.off('room_assigned');
       socket.off('new_click');
     };
   }, []);
 
-  // Render logic based on role and status
   if (!role) {
     return (
       <LandingScreen 
         socket={socket} 
         setRole={handleSetRole} 
-        setGuestName={handleSetGuestName} 
+        setGuestName={handleSetGuestName}
+        selectedRoomId={roomId}
+        setSelectedRoomId={handleSetRoomId}
+        roomsList={roomsList}
       />
     );
   }
@@ -195,7 +260,9 @@ function App() {
         socket={socket} 
         state={gameState} 
         guestName={guestName} 
-        onLogout={handleLogout} 
+        onLogout={handleLogout}
+        roomsList={roomsList}
+        onSwitchRoom={handleSwitchRoom}
       />
     );
   }

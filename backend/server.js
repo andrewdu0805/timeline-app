@@ -15,201 +15,422 @@ const io = new Server(server, {
   }
 });
 
-// App State
-let state = {
-  status: 'idle', // idle, running, paused, finished
-  durationMinutes: 120, // default
-  speed: 1, // 1, 2, 3
-  elapsedTimeMs: 0,
-  clicks: [], // { name, val, exactMs }
-  guests: [], // { id, clientId, name, device, isOnline }
-  videoId: '', // YouTube video ID
-};
+// Multi-Classroom State Map (key: roomId string '1', '2', ...)
+const rooms = new Map();
 
-let tickInterval = null;
-let lastTickTime = Date.now();
-
-// Disconnect grace timers (key: clientId or name, value: Timeout)
+// Disconnect grace timers (key: `${roomId}:${clientId}` or `host:${clientId}`, value: Timeout)
 const disconnectTimers = new Map();
 const GRACE_PERIOD_MS = 90000; // 90 seconds grace period for mobile app-switching / screen lock
 
-const broadcastState = () => {
-  io.emit('state_update', state);
+const createRoomObject = (roomId) => ({
+  roomId: String(roomId),
+  roomName: `教室 ${roomId}`,
+  hostClientId: null,
+  hostSocketId: null,
+  hostOnline: false,
+  status: 'idle', // idle, running, paused, finished
+  durationMinutes: 120,
+  speed: 1,
+  elapsedTimeMs: 0,
+  clicks: [], // { name, val, exactMs }
+  guests: [], // { id, clientId, name, device, isOnline }
+  videoId: '',
+  videoTitle: '',
+  tickInterval: null,
+  lastTickTime: Date.now()
+});
+
+// Always ensure Classroom 1 exists for early guests arriving before any Host
+const getOrCreateRoom = (roomId) => {
+  const id = String(roomId || '1');
+  if (!rooms.has(id)) {
+    rooms.set(id, createRoomObject(id));
+  }
+  return rooms.get(id);
 };
 
-const startTick = () => {
-  if (tickInterval) clearInterval(tickInterval);
-  lastTickTime = Date.now();
-  
-  // Update state every 500ms so clients stay closely in sync
-  tickInterval = setInterval(() => {
-    if (state.status !== 'running') {
-      clearInterval(tickInterval);
+// Initialize Classroom 1
+getOrCreateRoom('1');
+
+const getRoomsList = () => {
+  const list = [];
+  const sortedIds = Array.from(rooms.keys()).sort((a, b) => Number(a) - Number(b));
+  for (const id of sortedIds) {
+    const r = rooms.get(id);
+    if (!r) continue;
+    list.push({
+      roomId: r.roomId,
+      roomName: r.roomName,
+      hasHost: Boolean(r.hostClientId),
+      hostOnline: Boolean(r.hostOnline),
+      guestCount: r.guests.length,
+      status: r.status,
+      videoTitle: r.videoTitle || ''
+    });
+  }
+  return list;
+};
+
+const serializeRoomState = (room) => ({
+  roomId: room.roomId,
+  roomName: room.roomName,
+  hasHost: Boolean(room.hostClientId),
+  hostOnline: Boolean(room.hostOnline),
+  status: room.status,
+  durationMinutes: room.durationMinutes,
+  speed: room.speed,
+  elapsedTimeMs: room.elapsedTimeMs,
+  clicks: room.clicks,
+  guests: room.guests,
+  videoId: room.videoId,
+  videoTitle: room.videoTitle,
+  roomsList: getRoomsList()
+});
+
+const broadcastRoomState = (roomId) => {
+  const room = rooms.get(String(roomId));
+  if (!room) return;
+  io.to(`room_${room.roomId}`).emit('state_update', serializeRoomState(room));
+};
+
+const broadcastAllRoomsSummary = () => {
+  const list = getRoomsList();
+  io.emit('rooms_list_update', list);
+  for (const id of rooms.keys()) {
+    broadcastRoomState(id);
+  }
+};
+
+// Clean up extra empty rooms (roomId !== '1') when they have no host, no guests, and are idle
+const cleanupEmptyRooms = () => {
+  let removed = false;
+  for (const [id, room] of rooms.entries()) {
+    if (id !== '1' && !room.hostClientId && room.guests.length === 0 && room.status === 'idle') {
+      if (room.tickInterval) clearInterval(room.tickInterval);
+      rooms.delete(id);
+      removed = true;
+    }
+  }
+  if (removed) {
+    broadcastAllRoomsSummary();
+  }
+};
+
+const startRoomTick = (room) => {
+  if (room.tickInterval) clearInterval(room.tickInterval);
+  room.lastTickTime = Date.now();
+
+  room.tickInterval = setInterval(() => {
+    if (room.status !== 'running') {
+      clearInterval(room.tickInterval);
+      room.tickInterval = null;
       return;
     }
 
     const now = Date.now();
-    const delta = now - lastTickTime;
-    lastTickTime = now;
+    const delta = now - room.lastTickTime;
+    room.lastTickTime = now;
 
-    state.elapsedTimeMs += delta * state.speed;
+    room.elapsedTimeMs += delta * room.speed;
 
-    const maxMs = state.durationMinutes * 60 * 1000;
-    if (state.elapsedTimeMs >= maxMs) {
-      state.elapsedTimeMs = maxMs;
-      state.status = 'finished';
-      clearInterval(tickInterval);
+    const maxMs = room.durationMinutes * 60 * 1000;
+    if (room.elapsedTimeMs >= maxMs) {
+      room.elapsedTimeMs = maxMs;
+      room.status = 'finished';
+      clearInterval(room.tickInterval);
+      room.tickInterval = null;
+      broadcastAllRoomsSummary();
+      return;
     }
-    broadcastState();
-  }, 500); 
+    broadcastRoomState(room.roomId);
+  }, 500);
+};
+
+const removeGuestFromRoom = (room, socketId, clientId, name) => {
+  if (!room) return false;
+  const before = room.guests.length;
+  room.guests = room.guests.filter(
+    g => g.id !== socketId && (!clientId || g.clientId !== clientId) && (!name || g.name !== name)
+  );
+  return room.guests.length !== before;
 };
 
 io.on('connection', (socket) => {
-  // Send current state to new client
-  socket.emit('state_update', state);
+  // Default new connections to Classroom 1 view so LandingScreen gets roomsList immediately
+  const defaultRoom = getOrCreateRoom('1');
+  socket.emit('state_update', serializeRoomState(defaultRoom));
+  socket.emit('rooms_list_update', getRoomsList());
 
-  // Host Events
+  // Host joins or creates a classroom automatically
+  socket.on('join_as_host', ({ clientId, preferredRoomId } = {}) => {
+    const cId = clientId || socket.id;
+    socket.clientId = cId;
+    socket.role = 'host';
+
+    // Clear any pending host disconnect timer for this clientId
+    const hostTimerKey = `host:${cId}`;
+    if (disconnectTimers.has(hostTimerKey)) {
+      clearTimeout(disconnectTimers.get(hostTimerKey));
+      disconnectTimers.delete(hostTimerKey);
+    }
+
+    let targetRoom = null;
+
+    // 1. Check if this Host already owns an existing classroom (e.g. page refresh / reconnect)
+    for (const r of rooms.values()) {
+      if (r.hostClientId === cId) {
+        targetRoom = r;
+        break;
+      }
+    }
+
+    // 2. If a preferredRoomId was specified and it has no active host, use it
+    if (!targetRoom && preferredRoomId && rooms.has(String(preferredRoomId))) {
+      const prefRoom = rooms.get(String(preferredRoomId));
+      if (!prefRoom.hostClientId || prefRoom.hostClientId === cId) {
+        targetRoom = prefRoom;
+      }
+    }
+
+    // 3. Otherwise, find the first existing classroom without a Host (starting with Classroom 1)
+    if (!targetRoom) {
+      const sortedIds = Array.from(rooms.keys()).sort((a, b) => Number(a) - Number(b));
+      for (const id of sortedIds) {
+        const r = rooms.get(id);
+        if (!r.hostClientId) {
+          targetRoom = r;
+          break;
+        }
+      }
+    }
+
+    // 4. If all existing classrooms already have a Host, open a new classroom (next number)
+    if (!targetRoom) {
+      let nextNum = 1;
+      while (rooms.has(String(nextNum))) {
+        nextNum++;
+      }
+      targetRoom = getOrCreateRoom(String(nextNum));
+    }
+
+    // Leave previous socket room if any
+    if (socket.roomId && socket.roomId !== targetRoom.roomId) {
+      socket.leave(`room_${socket.roomId}`);
+    }
+
+    targetRoom.hostClientId = cId;
+    targetRoom.hostSocketId = socket.id;
+    targetRoom.hostOnline = true;
+    socket.roomId = targetRoom.roomId;
+    socket.join(`room_${targetRoom.roomId}`);
+
+    socket.emit('room_assigned', { roomId: targetRoom.roomId, roomName: targetRoom.roomName });
+    broadcastAllRoomsSummary();
+  });
+
+  socket.on('leave_host', () => {
+    const cId = socket.clientId || socket.id;
+    const hostTimerKey = `host:${cId}`;
+    if (disconnectTimers.has(hostTimerKey)) {
+      clearTimeout(disconnectTimers.get(hostTimerKey));
+      disconnectTimers.delete(hostTimerKey);
+    }
+
+    const room = rooms.get(String(socket.roomId || '1'));
+    if (room && (room.hostClientId === cId || room.hostSocketId === socket.id)) {
+      room.hostClientId = null;
+      room.hostSocketId = null;
+      room.hostOnline = false;
+    }
+    if (socket.roomId) {
+      socket.leave(`room_${socket.roomId}`);
+    }
+    socket.role = null;
+    cleanupEmptyRooms();
+    broadcastAllRoomsSummary();
+  });
+
+  // Helper to get the socket's current room
+  const getSocketRoom = () => {
+    const rId = String(socket.roomId || '1');
+    return getOrCreateRoom(rId);
+  };
+
+  // Host Control Events (scoped to the Host/Guest's current classroom)
   socket.on('set_video_id', (id) => {
-    if (state.status === 'idle') {
-      state.videoId = id;
-      broadcastState();
+    const room = getSocketRoom();
+    if (room.status === 'idle') {
+      room.videoId = id;
+      broadcastAllRoomsSummary();
     }
   });
 
   socket.on('set_video_metadata', ({ minutes, title }) => {
-    if (state.status === 'idle') {
-      state.durationMinutes = Math.max(1, minutes);
+    const room = getSocketRoom();
+    if (room.status === 'idle') {
+      room.durationMinutes = Math.max(1, minutes);
       if (title) {
-        state.videoTitle = title;
+        room.videoTitle = title;
       }
-      broadcastState();
+      broadcastAllRoomsSummary();
     }
   });
 
   socket.on('start_timeline', () => {
-    if (state.status === 'idle') {
-      state.status = 'running';
-      startTick();
-      broadcastState();
+    const room = getSocketRoom();
+    if (room.status === 'idle') {
+      room.status = 'running';
+      startRoomTick(room);
+      broadcastAllRoomsSummary();
     }
   });
 
   socket.on('pause_timeline', () => {
-    if (state.status === 'running') {
-      state.status = 'paused';
-      // calculate exact time at pause
+    const room = getSocketRoom();
+    if (room.status === 'running') {
+      room.status = 'paused';
       const now = Date.now();
-      const delta = now - lastTickTime;
-      state.elapsedTimeMs += delta * state.speed;
-      if (tickInterval) clearInterval(tickInterval);
-      broadcastState();
+      const delta = now - room.lastTickTime;
+      room.elapsedTimeMs += delta * room.speed;
+      if (room.tickInterval) {
+        clearInterval(room.tickInterval);
+        room.tickInterval = null;
+      }
+      broadcastAllRoomsSummary();
     }
   });
 
   socket.on('resume_timeline', () => {
-    if (state.status === 'paused') {
-      state.status = 'running';
-      startTick();
-      broadcastState();
+    const room = getSocketRoom();
+    if (room.status === 'paused') {
+      room.status = 'running';
+      startRoomTick(room);
+      broadcastAllRoomsSummary();
     }
   });
 
   socket.on('seek_timeline', (offsetMs) => {
-    if (state.status !== 'idle') {
-      // update exact time first
-      if (state.status === 'running') {
+    const room = getSocketRoom();
+    if (room.status !== 'idle') {
+      if (room.status === 'running') {
         const now = Date.now();
-        const delta = now - lastTickTime;
-        state.elapsedTimeMs += delta * state.speed;
-        lastTickTime = now;
+        const delta = now - room.lastTickTime;
+        room.elapsedTimeMs += delta * room.speed;
+        room.lastTickTime = now;
       }
-      
-      state.elapsedTimeMs = Math.max(0, state.elapsedTimeMs + offsetMs);
-      const maxMs = state.durationMinutes * 60 * 1000;
-      if (state.elapsedTimeMs >= maxMs) {
-         state.elapsedTimeMs = maxMs;
-         if (state.status === 'running') {
-           state.status = 'finished';
-           if (tickInterval) clearInterval(tickInterval);
-         }
+
+      room.elapsedTimeMs = Math.max(0, room.elapsedTimeMs + offsetMs);
+      const maxMs = room.durationMinutes * 60 * 1000;
+      if (room.elapsedTimeMs >= maxMs) {
+        room.elapsedTimeMs = maxMs;
+        if (room.status === 'running') {
+          room.status = 'finished';
+          if (room.tickInterval) {
+            clearInterval(room.tickInterval);
+            room.tickInterval = null;
+          }
+        }
       }
-      broadcastState();
+      broadcastRoomState(room.roomId);
     }
   });
 
   socket.on('set_speed', (speed) => {
-    if (state.status === 'running' || state.status === 'idle' || state.status === 'paused') {
-      state.speed = speed;
-      // also calculate intermediate elapsed time accurately if running
-      if (state.status === 'running') {
+    const room = getSocketRoom();
+    if (room.status === 'running' || room.status === 'idle' || room.status === 'paused') {
+      room.speed = speed;
+      if (room.status === 'running') {
         const now = Date.now();
-        const delta = now - lastTickTime;
-        state.elapsedTimeMs += delta * state.speed;
-        lastTickTime = now;
+        const delta = now - room.lastTickTime;
+        room.elapsedTimeMs += delta * room.speed;
+        room.lastTickTime = now;
       }
-      broadcastState();
+      broadcastRoomState(room.roomId);
     }
   });
 
   socket.on('end_timeline', () => {
-    if (state.status === 'running' || state.status === 'paused') {
-      if (state.status === 'running') {
+    const room = getSocketRoom();
+    if (room.status === 'running' || room.status === 'paused') {
+      if (room.status === 'running') {
         const now = Date.now();
-        const delta = now - lastTickTime;
-        state.elapsedTimeMs += delta * state.speed;
+        const delta = now - room.lastTickTime;
+        room.elapsedTimeMs += delta * room.speed;
       }
-      state.status = 'finished';
-      if (tickInterval) clearInterval(tickInterval);
-      broadcastState();
+      room.status = 'finished';
+      if (room.tickInterval) {
+        clearInterval(room.tickInterval);
+        room.tickInterval = null;
+      }
+      broadcastAllRoomsSummary();
     }
   });
 
   socket.on('reset', () => {
-    state = {
-      status: 'idle',
-      durationMinutes: state.durationMinutes,
-      speed: 1,
-      elapsedTimeMs: 0,
-      clicks: [],
-      guests: state.guests, // Preserve connected guests!
-      videoId: state.videoId,
-      videoTitle: state.videoTitle
-    };
-    if (tickInterval) clearInterval(tickInterval);
-    broadcastState();
+    const room = getSocketRoom();
+    if (room.tickInterval) {
+      clearInterval(room.tickInterval);
+      room.tickInterval = null;
+    }
+    room.status = 'idle';
+    room.speed = 1;
+    room.elapsedTimeMs = 0;
+    room.clicks = [];
+    broadcastAllRoomsSummary();
   });
 
   // Guest Events
-  socket.on('join_as_guest', ({ name, device, clientId }) => {
+  socket.on('join_as_guest', ({ name, device, clientId, roomId }) => {
     const cId = clientId || socket.id;
     socket.clientId = cId;
     socket.guestName = name;
+    socket.role = 'guest';
+    socket.guestDevice = device;
 
-    // Clear any pending disconnect timer for this guest
-    if (disconnectTimers.has(cId)) {
-      clearTimeout(disconnectTimers.get(cId));
-      disconnectTimers.delete(cId);
+    // Determine target room: if requested roomId exists, use it; else default to '1'
+    let targetRoomId = String(roomId || socket.roomId || '1');
+    if (!rooms.has(targetRoomId)) {
+      const availableIds = Array.from(rooms.keys()).sort((a, b) => Number(a) - Number(b));
+      targetRoomId = availableIds[0] || '1';
     }
-    if (name && disconnectTimers.has(name)) {
-      clearTimeout(disconnectTimers.get(name));
-      disconnectTimers.delete(name);
+    const targetRoom = getOrCreateRoom(targetRoomId);
+
+    // Clear any pending disconnect timers for this guest across all rooms
+    for (const key of Array.from(disconnectTimers.keys())) {
+      if (key.endsWith(`:${cId}`) || (name && key.endsWith(`:${name}`))) {
+        clearTimeout(disconnectTimers.get(key));
+        disconnectTimers.delete(key);
+      }
     }
 
-    // Match by clientId or name
-    const existingIndex = state.guests.findIndex(
+    // Remove this guest from any OTHER room they might have been in previously
+    for (const [otherId, otherRoom] of rooms.entries()) {
+      if (otherId !== targetRoom.roomId) {
+        removeGuestFromRoom(otherRoom, socket.id, cId, name);
+      }
+    }
+
+    if (socket.roomId && socket.roomId !== targetRoom.roomId) {
+      socket.leave(`room_${socket.roomId}`);
+    }
+
+    socket.roomId = targetRoom.roomId;
+    socket.join(`room_${targetRoom.roomId}`);
+
+    const existingIndex = targetRoom.guests.findIndex(
       g => (g.clientId && g.clientId === cId) || g.name === name
     );
 
     if (existingIndex !== -1) {
-      state.guests[existingIndex] = {
+      targetRoom.guests[existingIndex] = {
         id: socket.id,
         clientId: cId,
         name,
-        device: device || state.guests[existingIndex].device,
+        device: device || targetRoom.guests[existingIndex].device,
         isOnline: true
       };
     } else {
-      state.guests.push({
+      targetRoom.guests.push({
         id: socket.id,
         clientId: cId,
         name,
@@ -218,69 +439,145 @@ io.on('connection', (socket) => {
       });
     }
 
-    broadcastState();
+    socket.emit('room_assigned', { roomId: targetRoom.roomId, roomName: targetRoom.roomName });
+    cleanupEmptyRooms();
+    broadcastAllRoomsSummary();
+  });
+
+  // Allow a guest to switch classrooms on the fly without re-entering their name
+  socket.on('switch_room', ({ roomId }) => {
+    const targetId = String(roomId);
+    if (!rooms.has(targetId)) return;
+
+    const cId = socket.clientId || socket.id;
+    const name = socket.guestName || 'Guest';
+    const device = socket.guestDevice || 'Desktop';
+
+    // Remove from current room
+    if (socket.roomId && rooms.has(String(socket.roomId))) {
+      const oldRoom = rooms.get(String(socket.roomId));
+      removeGuestFromRoom(oldRoom, socket.id, cId, name);
+      socket.leave(`room_${socket.roomId}`);
+    }
+
+    const newRoom = rooms.get(targetId);
+    socket.roomId = newRoom.roomId;
+    socket.join(`room_${newRoom.roomId}`);
+
+    const existingIndex = newRoom.guests.findIndex(
+      g => (g.clientId && g.clientId === cId) || g.name === name
+    );
+    if (existingIndex !== -1) {
+      newRoom.guests[existingIndex] = {
+        id: socket.id,
+        clientId: cId,
+        name,
+        device,
+        isOnline: true
+      };
+    } else {
+      newRoom.guests.push({
+        id: socket.id,
+        clientId: cId,
+        name,
+        device,
+        isOnline: true
+      });
+    }
+
+    socket.emit('room_assigned', { roomId: newRoom.roomId, roomName: newRoom.roomName });
+    cleanupEmptyRooms();
+    broadcastAllRoomsSummary();
   });
 
   socket.on('leave_guest', () => {
     const cId = socket.clientId || socket.id;
     const name = socket.guestName;
-    if (disconnectTimers.has(cId)) {
-      clearTimeout(disconnectTimers.get(cId));
-      disconnectTimers.delete(cId);
+
+    for (const key of Array.from(disconnectTimers.keys())) {
+      if (key.endsWith(`:${cId}`) || (name && key.endsWith(`:${name}`))) {
+        clearTimeout(disconnectTimers.get(key));
+        disconnectTimers.delete(key);
+      }
     }
-    if (name && disconnectTimers.has(name)) {
-      clearTimeout(disconnectTimers.get(name));
-      disconnectTimers.delete(name);
+
+    const room = rooms.get(String(socket.roomId || '1'));
+    if (room) {
+      removeGuestFromRoom(room, socket.id, cId, name);
     }
-    state.guests = state.guests.filter(
-      g => g.id !== socket.id && (!cId || g.clientId !== cId) && (!name || g.name !== name)
-    );
-    broadcastState();
+    if (socket.roomId) {
+      socket.leave(`room_${socket.roomId}`);
+    }
+    socket.role = null;
+    cleanupEmptyRooms();
+    broadcastAllRoomsSummary();
   });
 
   socket.on('disconnect', () => {
     const cId = socket.clientId || socket.id;
     const name = socket.guestName;
-    const guest = state.guests.find(
+    const rId = String(socket.roomId || '1');
+    const room = rooms.get(rId);
+    if (!room) return;
+
+    // Handle Host disconnect with grace period
+    if (socket.role === 'host' && (room.hostClientId === cId || room.hostSocketId === socket.id)) {
+      room.hostOnline = false;
+      const hostTimerKey = `host:${cId}`;
+      if (disconnectTimers.has(hostTimerKey)) {
+        clearTimeout(disconnectTimers.get(hostTimerKey));
+      }
+      const timer = setTimeout(() => {
+        disconnectTimers.delete(hostTimerKey);
+        if (room.hostClientId === cId) {
+          room.hostClientId = null;
+          room.hostSocketId = null;
+          room.hostOnline = false;
+          cleanupEmptyRooms();
+          broadcastAllRoomsSummary();
+        }
+      }, GRACE_PERIOD_MS);
+      disconnectTimers.set(hostTimerKey, timer);
+      return;
+    }
+
+    // Handle Guest disconnect with 90s grace period
+    const guest = room.guests.find(
       g => g.id === socket.id || (cId && g.clientId === cId) || (name && g.name === name)
     );
 
     if (guest) {
-      // Mark as temporarily offline instead of deleting immediately
       guest.isOnline = false;
 
-      const timerKey = cId || name || socket.id;
+      const timerKey = `${rId}:${cId || name || socket.id}`;
       if (disconnectTimers.has(timerKey)) {
         clearTimeout(disconnectTimers.get(timerKey));
       }
 
       const timer = setTimeout(() => {
         disconnectTimers.delete(timerKey);
-        state.guests = state.guests.filter(
-          g => g !== guest && g.id !== socket.id && (!cId || g.clientId !== cId) && (!name || g.name !== name)
-        );
-        broadcastState();
+        removeGuestFromRoom(room, socket.id, cId, name);
+        cleanupEmptyRooms();
+        broadcastAllRoomsSummary();
       }, GRACE_PERIOD_MS);
 
       disconnectTimers.set(timerKey, timer);
-      // We do NOT broadcast immediate removal, so guest count does NOT drop during mobile app switching
     }
   });
 
   socket.on('register_click', ({ name, val }) => {
-    if (state.status === 'running') {
-      // Calculate exact time based on current time plus small offset
+    const room = getSocketRoom();
+    if (room.status === 'running') {
       const now = Date.now();
-      const delta = now - lastTickTime;
-      const exactMs = state.elapsedTimeMs + (delta * state.speed);
+      const delta = now - room.lastTickTime;
+      const exactMs = room.elapsedTimeMs + (delta * room.speed);
 
-      // Make sure we don't exceed max
-      const maxMs = state.durationMinutes * 60 * 1000;
+      const maxMs = room.durationMinutes * 60 * 1000;
       const finalMs = Math.min(exactMs, maxMs);
 
       const clickData = { name, val, exactMs: finalMs };
-      state.clicks.push(clickData);
-      io.emit('new_click', clickData); // broadcast instantly to everyone
+      room.clicks.push(clickData);
+      io.to(`room_${room.roomId}`).emit('new_click', clickData);
     }
   });
 });

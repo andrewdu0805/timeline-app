@@ -3,7 +3,7 @@ import Timeline, { useLocalTime, formatTime } from './Timeline';
 import VideoPlayer from './VideoPlayer';
 import { getDeviceType } from '../App';
 
-const GuestScreen = ({ socket, state, guestName, onLogout }) => {
+const GuestScreen = ({ socket, state, guestName, onLogout, roomsList = [], onSwitchRoom }) => {
   const [clickEffect, setClickEffect] = useState(null);
   const localTimeMs = useLocalTime(state);
 
@@ -33,14 +33,41 @@ const GuestScreen = ({ socket, state, guestName, onLogout }) => {
     finished: '已結束'
   };
 
+  const activeRooms = (state.roomsList && state.roomsList.length > 0) ? state.roomsList : roomsList;
+  const currentRoomId = String(state.roomId || '1');
+
   return (
     <div className={`screen-container guest-screen ${clickEffect || ''}`}>
       <div className="guest-header glass-panel">
         
-        {/* Group 1: User, Video Link & Clock */}
+        {/* Group 1: User, Classroom Switcher (when 2+ rooms), Video Link & Clock */}
         <div className="guest-header-group">
           <div className="user-info" style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span>名字: <span>{guestName}</span></span>
+            {activeRooms && activeRooms.length >= 2 && (
+              <select
+                value={currentRoomId}
+                onChange={(e) => onSwitchRoom && onSwitchRoom(e.target.value)}
+                title="切換教室"
+                style={{
+                  background: 'rgba(59, 130, 246, 0.2)',
+                  border: '1px solid rgba(59, 130, 246, 0.5)',
+                  color: '#fff',
+                  borderRadius: '4px',
+                  padding: '1px 4px',
+                  fontSize: '0.78rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                {activeRooms.map((r) => (
+                  <option key={r.roomId} value={r.roomId} style={{ background: '#1e293b', color: '#fff' }}>
+                    🏫 {r.roomName} ({statusMap[r.status] || r.status}·{r.guestCount}人)
+                  </option>
+                ))}
+              </select>
+            )}
             {onLogout && (
               <button 
                 onClick={onLogout}

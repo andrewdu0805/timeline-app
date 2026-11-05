@@ -68,6 +68,19 @@ const HostScreen = ({ socket, state, onLogout }) => {
       <div className="host-dashboard glass-panel" style={{ padding: '0.5rem 1rem', marginBottom: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginRight: '0.5rem' }}>
           <h2 style={{ fontSize: '1.1rem', margin: 0 }}>Host Control Panel</h2>
+          <span
+            style={{
+              background: 'rgba(59, 130, 246, 0.2)',
+              border: '1px solid rgba(59, 130, 246, 0.5)',
+              color: '#93c5fd',
+              fontSize: '0.78rem',
+              fontWeight: 'bold',
+              padding: '1px 7px',
+              borderRadius: '4px'
+            }}
+          >
+            🏫 {state.roomName || `教室 ${state.roomId || '1'}`}
+          </span>
           {onLogout && (
             <button 
               onClick={onLogout}
