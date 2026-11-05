@@ -12,7 +12,13 @@ const LandingScreen = ({
   setRoomsFullNotice,
   maxRooms = 5
 }) => {
-  const [nameInput, setNameInput] = useState('');
+  const [nameInput, setNameInput] = useState(() => {
+    try {
+      return localStorage.getItem('timeline_guest_name') || '';
+    } catch (e) {
+      return '';
+    }
+  });
   const [hostPending, setHostPending] = useState(false);
   const nameInputRef = useRef(null);
 

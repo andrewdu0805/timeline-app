@@ -37,9 +37,11 @@ const socket = io(socketUrl, {
 });
 
 function App() {
+  // Use sessionStorage so refreshing within the same session re-joins,
+  // but opening the page in a fresh tab or new session ALWAYS shows the Landing Screen to choose Host or Guest.
   const [role, setRole] = useState(() => {
     try {
-      return localStorage.getItem('timeline_role') || null;
+      return sessionStorage.getItem('timeline_session_role') || null;
     } catch (e) {
       return null;
     }
@@ -47,7 +49,7 @@ function App() {
 
   const [guestName, setGuestName] = useState(() => {
     try {
-      return localStorage.getItem('timeline_guest_name') || '';
+      return sessionStorage.getItem('timeline_session_name') || localStorage.getItem('timeline_guest_name') || '';
     } catch (e) {
       return '';
     }
@@ -55,7 +57,7 @@ function App() {
 
   const [roomId, setRoomId] = useState(() => {
     try {
-      return localStorage.getItem('timeline_room_id') || '1';
+      return sessionStorage.getItem('timeline_session_room') || '1';
     } catch (e) {
       return '1';
     }
@@ -84,10 +86,11 @@ function App() {
     setRole(newRole);
     try {
       if (newRole) {
-        localStorage.setItem('timeline_role', newRole);
+        sessionStorage.setItem('timeline_session_role', newRole);
       } else {
-        localStorage.removeItem('timeline_role');
+        sessionStorage.removeItem('timeline_session_role');
       }
+      localStorage.removeItem('timeline_role'); // Clean up any legacy localStorage role
     } catch (e) {}
   };
 
@@ -95,8 +98,10 @@ function App() {
     setGuestName(name);
     try {
       if (name) {
-        localStorage.setItem('timeline_guest_name', name);
+        sessionStorage.setItem('timeline_session_name', name);
+        localStorage.setItem('timeline_guest_name', name); // Remember name for convenient autofill on landing screen
       } else {
+        sessionStorage.removeItem('timeline_session_name');
         localStorage.removeItem('timeline_guest_name');
       }
     } catch (e) {}
@@ -106,7 +111,7 @@ function App() {
     const rId = String(newRoomId || '1');
     setRoomId(rId);
     try {
-      localStorage.setItem('timeline_room_id', rId);
+      sessionStorage.setItem('timeline_session_room', rId);
     } catch (e) {}
   };
 
@@ -125,8 +130,10 @@ function App() {
       socket.emit('leave_host');
     }
     try {
+      sessionStorage.removeItem('timeline_session_role');
+      sessionStorage.removeItem('timeline_session_name');
+      sessionStorage.removeItem('timeline_session_room');
       localStorage.removeItem('timeline_role');
-      localStorage.removeItem('timeline_guest_name');
       localStorage.removeItem('timeline_room_id');
     } catch (e) {}
     setRole(null);
