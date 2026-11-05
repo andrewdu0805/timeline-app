@@ -153,7 +153,7 @@ const HostScreen = ({ socket, state, onLogout }) => {
             <span style={{ color: 'var(--color-plus)', fontWeight: 'bold' }}>+{myPlus}</span>
             <span style={{ color: 'var(--color-minus)', fontWeight: 'bold' }}>-{myMinus}</span>
             <span style={{ fontWeight: 'bold', marginLeft: '0.5rem', color: myBalance === 0 ? 'var(--text-primary)' : (myBalance > 0 ? 'var(--color-plus)' : 'var(--color-minus)') }}>
-              {myBalance === 0 ? '✅ 空手' : `${myBalance > 0 ? '多單: +' : '空單: '}${myBalance}`}
+              {myBalance === 0 ? '✅ 空手' : `${myBalance > 0 ? '多單: +' : '空單: '}${myBalance}${Math.abs(myBalance) >= 10 ? ' (滿倉)' : ''}`}
             </span>
             {myBalance !== 0 && (
               <button

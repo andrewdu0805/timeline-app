@@ -612,6 +612,16 @@ io.on('connection', (socket) => {
     const room = getSocketRoom();
     if (!room) return;
     if (room.status === 'running') {
+      // Calculate current user balance in this room
+      const userClicks = room.clicks.filter(c => c.name === name);
+      const currentBalance = userClicks.reduce((sum, c) => sum + c.val, 0);
+
+      // Unless it's an explicit close-position order, enforce limit of [-10, +10]
+      if (!isClose) {
+        if (val > 0 && currentBalance >= 10) return;
+        if (val < 0 && currentBalance <= -10) return;
+      }
+
       const now = Date.now();
       const delta = now - room.lastTickTime;
       const exactMs = room.elapsedTimeMs + (delta * room.speed);
