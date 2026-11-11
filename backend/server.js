@@ -12,6 +12,10 @@ const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
+  },
+  // Compress payloads larger than 1 KB (e.g., initial clicks history on join/finish)
+  perMessageDeflate: {
+    threshold: 1024
   }
 });
 
@@ -22,6 +26,9 @@ const rooms = new Map();
 const disconnectTimers = new Map();
 const GRACE_PERIOD_MS = 90000; // 90 seconds grace period for mobile app-switching / screen lock
 const MAX_ROOMS = 5; // Maximum number of classrooms open at the same time
+const TICK_INTERVAL_MS = 1000; // Lightweight time sync every 1s (client interpolates smoothly at 60fps)
+
+let lastRoomsListJson = '';
 
 const createRoomObject = (roomId) => ({
   roomId: String(roomId),
@@ -74,6 +81,10 @@ const getRoomsList = () => {
   return list;
 };
 
+// Strip internal socket/client IDs when sending guests list to clients
+const serializeGuests = (room) =>
+  room.guests.map(({ name, device, isOnline }) => ({ name, device, isOnline }));
+
 const serializeRoomState = (room) => ({
   roomId: room.roomId,
   roomName: room.roomName,
@@ -82,26 +93,26 @@ const serializeRoomState = (room) => ({
   status: room.status,
   durationMinutes: room.durationMinutes,
   speed: room.speed,
-  elapsedTimeMs: room.elapsedTimeMs,
+  elapsedTimeMs: Math.round(room.elapsedTimeMs),
   clicks: room.clicks,
-  guests: room.guests,
+  guests: serializeGuests(room),
   videoId: room.videoId,
   videoTitle: room.videoTitle,
-  maxRooms: MAX_ROOMS,
-  roomsList: getRoomsList()
+  maxRooms: MAX_ROOMS
 });
 
-const broadcastRoomState = (roomId) => {
-  const room = rooms.get(String(roomId));
-  if (!room) return;
-  io.to(`room_${room.roomId}`).emit('state_update', serializeRoomState(room));
+// Send only changed fields to sockets inside a specific room
+const broadcastRoomPatch = (roomId, patch) => {
+  io.to(`room_${roomId}`).emit('state_update', patch);
 };
 
-const broadcastAllRoomsSummary = () => {
+// Emit lightweight rooms summary only when something in the summary actually changed
+const broadcastRoomsListIfChanged = () => {
   const list = getRoomsList();
-  io.emit('rooms_list_update', list);
-  for (const id of rooms.keys()) {
-    broadcastRoomState(id);
+  const json = JSON.stringify(list);
+  if (json !== lastRoomsListJson) {
+    lastRoomsListJson = json;
+    io.emit('rooms_list_update', list);
   }
 };
 
@@ -122,15 +133,8 @@ const cleanupEmptyRooms = () => {
     removed = true;
   }
   if (removed) {
-    broadcastAllRoomsSummary();
+    broadcastRoomsListIfChanged();
   }
-};
-
-// Returns the first room (lowest number), creating a placeholder if none exist
-const getFirstRoom = () => {
-  if (rooms.size === 0) return getOrCreateRoom('1');
-  const firstId = Array.from(rooms.keys()).sort((a, b) => Number(a) - Number(b))[0];
-  return rooms.get(firstId);
 };
 
 const startRoomTick = (room) => {
@@ -156,11 +160,20 @@ const startRoomTick = (room) => {
       room.status = 'finished';
       clearInterval(room.tickInterval);
       room.tickInterval = null;
-      broadcastAllRoomsSummary();
+      // Send final authoritative clicks + guests on finish so Excel export is 100% consistent
+      broadcastRoomPatch(room.roomId, {
+        status: 'finished',
+        elapsedTimeMs: maxMs,
+        clicks: room.clicks,
+        guests: serializeGuests(room)
+      });
+      broadcastRoomsListIfChanged();
       return;
     }
-    broadcastRoomState(room.roomId);
-  }, 500);
+
+    // Ultra-lightweight time sync (~26 bytes) instead of re-sending all clicks & guests every tick
+    broadcastRoomPatch(room.roomId, { elapsedTimeMs: Math.round(room.elapsedTimeMs) });
+  }, TICK_INTERVAL_MS);
 };
 
 const removeGuestFromRoom = (room, socketId, clientId, name) => {
@@ -173,9 +186,8 @@ const removeGuestFromRoom = (room, socketId, clientId, name) => {
 };
 
 io.on('connection', (socket) => {
-  // Send the first available classroom view so LandingScreen gets roomsList immediately
-  const defaultRoom = getFirstRoom();
-  socket.emit('state_update', serializeRoomState(defaultRoom));
+  // On initial landing, only send maxRooms and lightweight rooms list (not full click history)
+  socket.emit('state_update', { maxRooms: MAX_ROOMS });
   socket.emit('rooms_list_update', getRoomsList());
 
   // Host joins a classroom.
@@ -257,8 +269,13 @@ io.on('connection', (socket) => {
     socket.join(`room_${targetRoom.roomId}`);
 
     socket.emit('room_assigned', { roomId: targetRoom.roomId, roomName: targetRoom.roomName });
+    // Send full room state only to the joining Host socket
+    socket.emit('state_update', serializeRoomState(targetRoom));
+    // Notify existing occupants in this room with minimal host-status patch
+    socket.to(`room_${targetRoom.roomId}`).emit('state_update', { hasHost: true, hostOnline: true });
+
     reply({ ok: true, roomId: targetRoom.roomId, roomName: targetRoom.roomName });
-    broadcastAllRoomsSummary();
+    broadcastRoomsListIfChanged();
   });
 
   socket.on('leave_host', () => {
@@ -274,13 +291,15 @@ io.on('connection', (socket) => {
       room.hostClientId = null;
       room.hostSocketId = null;
       room.hostOnline = false;
+      broadcastRoomPatch(room.roomId, { hasHost: false, hostOnline: false });
     }
     if (socket.roomId) {
       socket.leave(`room_${socket.roomId}`);
     }
     socket.role = null;
+    socket.roomId = null;
     cleanupEmptyRooms();
-    broadcastAllRoomsSummary();
+    broadcastRoomsListIfChanged();
   });
 
   // Helper to get the socket's current room
@@ -296,7 +315,7 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (room.status === 'idle') {
       room.videoId = id;
-      broadcastAllRoomsSummary();
+      broadcastRoomPatch(room.roomId, { videoId: room.videoId });
     }
   });
 
@@ -308,7 +327,11 @@ io.on('connection', (socket) => {
       if (title) {
         room.videoTitle = title;
       }
-      broadcastAllRoomsSummary();
+      broadcastRoomPatch(room.roomId, {
+        durationMinutes: room.durationMinutes,
+        videoTitle: room.videoTitle
+      });
+      broadcastRoomsListIfChanged();
     }
   });
 
@@ -318,7 +341,11 @@ io.on('connection', (socket) => {
     if (room.status === 'idle') {
       room.status = 'running';
       startRoomTick(room);
-      broadcastAllRoomsSummary();
+      broadcastRoomPatch(room.roomId, {
+        status: 'running',
+        elapsedTimeMs: Math.round(room.elapsedTimeMs)
+      });
+      broadcastRoomsListIfChanged();
     }
   });
 
@@ -334,7 +361,11 @@ io.on('connection', (socket) => {
         clearInterval(room.tickInterval);
         room.tickInterval = null;
       }
-      broadcastAllRoomsSummary();
+      broadcastRoomPatch(room.roomId, {
+        status: 'paused',
+        elapsedTimeMs: Math.round(room.elapsedTimeMs)
+      });
+      broadcastRoomsListIfChanged();
     }
   });
 
@@ -344,7 +375,11 @@ io.on('connection', (socket) => {
     if (room.status === 'paused') {
       room.status = 'running';
       startRoomTick(room);
-      broadcastAllRoomsSummary();
+      broadcastRoomPatch(room.roomId, {
+        status: 'running',
+        elapsedTimeMs: Math.round(room.elapsedTimeMs)
+      });
+      broadcastRoomsListIfChanged();
     }
   });
 
@@ -369,9 +404,20 @@ io.on('connection', (socket) => {
             clearInterval(room.tickInterval);
             room.tickInterval = null;
           }
+          broadcastRoomPatch(room.roomId, {
+            status: 'finished',
+            elapsedTimeMs: maxMs,
+            clicks: room.clicks,
+            guests: serializeGuests(room)
+          });
+          broadcastRoomsListIfChanged();
+          return;
         }
       }
-      broadcastRoomState(room.roomId);
+      broadcastRoomPatch(room.roomId, {
+        status: room.status,
+        elapsedTimeMs: Math.round(room.elapsedTimeMs)
+      });
     }
   });
 
@@ -379,14 +425,17 @@ io.on('connection', (socket) => {
     const room = getSocketRoom();
     if (!room) return;
     if (room.status === 'running' || room.status === 'idle' || room.status === 'paused') {
-      room.speed = speed;
       if (room.status === 'running') {
         const now = Date.now();
         const delta = now - room.lastTickTime;
         room.elapsedTimeMs += delta * room.speed;
         room.lastTickTime = now;
       }
-      broadcastRoomState(room.roomId);
+      room.speed = speed;
+      broadcastRoomPatch(room.roomId, {
+        speed: room.speed,
+        elapsedTimeMs: Math.round(room.elapsedTimeMs)
+      });
     }
   });
 
@@ -404,7 +453,13 @@ io.on('connection', (socket) => {
         clearInterval(room.tickInterval);
         room.tickInterval = null;
       }
-      broadcastAllRoomsSummary();
+      broadcastRoomPatch(room.roomId, {
+        status: 'finished',
+        elapsedTimeMs: Math.round(room.elapsedTimeMs),
+        clicks: room.clicks,
+        guests: serializeGuests(room)
+      });
+      broadcastRoomsListIfChanged();
     }
   });
 
@@ -419,7 +474,13 @@ io.on('connection', (socket) => {
     room.speed = 1;
     room.elapsedTimeMs = 0;
     room.clicks = [];
-    broadcastAllRoomsSummary();
+    broadcastRoomPatch(room.roomId, {
+      status: 'idle',
+      speed: 1,
+      elapsedTimeMs: 0,
+      clicks: []
+    });
+    broadcastRoomsListIfChanged();
   });
 
   // Guest Events
@@ -449,7 +510,9 @@ io.on('connection', (socket) => {
     // Remove this guest from any OTHER room they might have been in previously
     for (const [otherId, otherRoom] of rooms.entries()) {
       if (otherId !== targetRoom.roomId) {
-        removeGuestFromRoom(otherRoom, socket.id, cId, name);
+        if (removeGuestFromRoom(otherRoom, socket.id, cId, name)) {
+          broadcastRoomPatch(otherId, { guests: serializeGuests(otherRoom) });
+        }
       }
     }
 
@@ -483,8 +546,13 @@ io.on('connection', (socket) => {
     }
 
     socket.emit('room_assigned', { roomId: targetRoom.roomId, roomName: targetRoom.roomName });
+    // Send full state only to the joining/reconnecting guest
+    socket.emit('state_update', serializeRoomState(targetRoom));
+    // Notify others in the room with only the updated guests list
+    socket.to(`room_${targetRoom.roomId}`).emit('state_update', { guests: serializeGuests(targetRoom) });
+
     cleanupEmptyRooms();
-    broadcastAllRoomsSummary();
+    broadcastRoomsListIfChanged();
   });
 
   // Allow a guest to switch classrooms on the fly without re-entering their name
@@ -499,8 +567,11 @@ io.on('connection', (socket) => {
     // Remove from current room
     if (socket.roomId && rooms.has(String(socket.roomId))) {
       const oldRoom = rooms.get(String(socket.roomId));
-      removeGuestFromRoom(oldRoom, socket.id, cId, name);
+      const changed = removeGuestFromRoom(oldRoom, socket.id, cId, name);
       socket.leave(`room_${socket.roomId}`);
+      if (changed) {
+        broadcastRoomPatch(oldRoom.roomId, { guests: serializeGuests(oldRoom) });
+      }
     }
 
     const newRoom = rooms.get(targetId);
@@ -529,8 +600,11 @@ io.on('connection', (socket) => {
     }
 
     socket.emit('room_assigned', { roomId: newRoom.roomId, roomName: newRoom.roomName });
+    socket.emit('state_update', serializeRoomState(newRoom));
+    socket.to(`room_${newRoom.roomId}`).emit('state_update', { guests: serializeGuests(newRoom) });
+
     cleanupEmptyRooms();
-    broadcastAllRoomsSummary();
+    broadcastRoomsListIfChanged();
   });
 
   socket.on('leave_guest', () => {
@@ -546,14 +620,17 @@ io.on('connection', (socket) => {
 
     const room = rooms.get(String(socket.roomId || '1'));
     if (room) {
-      removeGuestFromRoom(room, socket.id, cId, name);
+      if (removeGuestFromRoom(room, socket.id, cId, name)) {
+        broadcastRoomPatch(room.roomId, { guests: serializeGuests(room) });
+      }
     }
     if (socket.roomId) {
       socket.leave(`room_${socket.roomId}`);
     }
     socket.role = null;
+    socket.roomId = null;
     cleanupEmptyRooms();
-    broadcastAllRoomsSummary();
+    broadcastRoomsListIfChanged();
   });
 
   socket.on('disconnect', () => {
@@ -576,8 +653,9 @@ io.on('connection', (socket) => {
           room.hostClientId = null;
           room.hostSocketId = null;
           room.hostOnline = false;
+          broadcastRoomPatch(room.roomId, { hasHost: false, hostOnline: false });
           cleanupEmptyRooms();
-          broadcastAllRoomsSummary();
+          broadcastRoomsListIfChanged();
         }
       }, GRACE_PERIOD_MS);
       disconnectTimers.set(hostTimerKey, timer);
@@ -599,9 +677,11 @@ io.on('connection', (socket) => {
 
       const timer = setTimeout(() => {
         disconnectTimers.delete(timerKey);
-        removeGuestFromRoom(room, socket.id, cId, name);
+        if (removeGuestFromRoom(room, socket.id, cId, name)) {
+          broadcastRoomPatch(room.roomId, { guests: serializeGuests(room) });
+        }
         cleanupEmptyRooms();
-        broadcastAllRoomsSummary();
+        broadcastRoomsListIfChanged();
       }, GRACE_PERIOD_MS);
 
       disconnectTimers.set(timerKey, timer);
@@ -636,7 +716,13 @@ io.on('connection', (socket) => {
   });
 });
 
-// Serve frontend in production
+// Cache hashed Vite asset bundles (JS/CSS) aggressively in browser so repeat visits use 0 bytes for bundles
+app.use('/assets', express.static(path.join(__dirname, '../frontend/dist/assets'), {
+  maxAge: '1y',
+  immutable: true
+}));
+
+// Serve remaining static files (index.html should stay uncached / revalidated)
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 // Fallback for React Router (if needed)
