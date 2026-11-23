@@ -1,11 +1,81 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Timeline, { useLocalTime, formatTime } from './Timeline';
 import VideoPlayer from './VideoPlayer';
+import { parseHistoricalFile, parseTimeStringToSec, parseVideoTimeToMs } from '../utils/priceDataParser';
 
 const HostScreen = ({ socket, state, onLogout }) => {
   const [videoUrlInput, setVideoUrlInput] = useState('');
   const [clickEffect, setClickEffect] = useState(null);
+  const [anchorMarketInput, setAnchorMarketInput] = useState('');
+  const [anchorVideoInput, setAnchorVideoInput] = useState('00:00');
+  const [priceError, setPriceError] = useState('');
+  const fileInputRef = useRef(null);
   const localTimeMs = useLocalTime(state);
+
+  // Sync anchor display if state already has priceDataInfo (e.g. after refresh)
+  useEffect(() => {
+    if (state.priceDataInfo) {
+      if (state.priceDataInfo.anchorMarketTime && !anchorMarketInput) {
+        setAnchorMarketInput(state.priceDataInfo.anchorMarketTime);
+      }
+      if (typeof state.priceDataInfo.anchorVideoMs === 'number') {
+        const totalSec = Math.floor(state.priceDataInfo.anchorVideoMs / 1000);
+        const m = Math.floor(totalSec / 60);
+        const s = totalSec % 60;
+        setAnchorVideoInput(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+      }
+    }
+  }, [state.priceDataInfo]);
+
+  const handlePriceFileUpload = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setPriceError('');
+    try {
+      const parsed = await parseHistoricalFile(file);
+      const videoMs = parseVideoTimeToMs(anchorVideoInput);
+      const defaultMarketTime = parsed.firstTimeStr;
+      setAnchorMarketInput(defaultMarketTime);
+
+      socket.emit('set_price_data', {
+        rows: parsed.rows,
+        sourceLabel: parsed.sourceLabel,
+        intervalSec: parsed.intervalSec,
+        firstTimeStr: parsed.firstTimeStr,
+        lastTimeStr: parsed.lastTimeStr,
+        anchorVideoMs: videoMs,
+        anchorMarketSec: parsed.firstTimeSec,
+        anchorMarketTime: defaultMarketTime
+      });
+    } catch (err) {
+      setPriceError(err.message || '解析歷史報價檔失敗');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleApplyAnchor = (nextVideoStr, nextMarketStr) => {
+    if (!state.priceDataInfo) return;
+    const vMs = parseVideoTimeToMs(nextVideoStr);
+    const mSec = parseTimeStringToSec(nextMarketStr);
+    if (mSec === null) {
+      setPriceError('盤面時間格式請輸入 HH:MM 或 HH:MM:SS（例如 08:45:00）');
+      return;
+    }
+    setPriceError('');
+    socket.emit('update_price_anchor', {
+      anchorVideoMs: vMs,
+      anchorMarketSec: mSec,
+      anchorMarketTime: nextMarketStr.trim()
+    });
+  };
+
+  const handleClearPriceData = () => {
+    setPriceError('');
+    setAnchorMarketInput('');
+    setAnchorVideoInput('00:00');
+    socket.emit('clear_price_data');
+  };
 
   const handleDurationReady = (durationSecs, title) => {
     const mins = Math.ceil(durationSecs / 60);
@@ -140,6 +210,112 @@ const HostScreen = ({ socket, state, onLogout }) => {
               <span className="guest-video-link-text">youtu.be/{state.videoId}</span>
               <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>↗</span>
             </a>
+          )}
+        </div>
+
+        {/* Historical Price Data Upload & Anchor Time (Optional) */}
+        <div className="control-group" style={{ gap: '0.4rem', flexWrap: 'wrap' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handlePriceFileUpload}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ padding: '0.4rem 0.7rem', fontSize: '0.82rem' }}
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            disabled={state.status !== 'idle'}
+            title="上傳 XQ (.xlsx/.csv) 或 TradingView (.csv) 歷史收盤價資料"
+          >
+            📊 {state.priceDataInfo ? '更換歷史資料' : '上傳歷史資料 (.csv/.xlsx)'}
+          </button>
+
+          {state.priceDataInfo && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              background: 'rgba(16, 185, 129, 0.14)',
+              border: '1px solid rgba(16, 185, 129, 0.45)',
+              padding: '0.2rem 0.55rem',
+              borderRadius: '6px',
+              fontSize: '0.78rem',
+              color: '#a7f3d0',
+              flexWrap: 'wrap'
+            }}>
+              <span style={{ fontWeight: 'bold' }}>
+                ✅ {state.priceDataInfo.sourceLabel} {state.priceDataInfo.intervalSec <= 1 ? '1秒K' : `${Math.round(state.priceDataInfo.intervalSec / 60)}分K`} ({state.priceDataInfo.count}筆)
+              </span>
+              <span style={{ opacity: 0.85 }}>影片</span>
+              <input
+                type="text"
+                value={anchorVideoInput}
+                onChange={(e) => setAnchorVideoInput(e.target.value)}
+                onBlur={() => handleApplyAnchor(anchorVideoInput, anchorMarketInput)}
+                disabled={state.status !== 'idle'}
+                title="對齊的影片時間（預設 00:00）"
+                style={{
+                  width: '48px',
+                  padding: '1px 4px',
+                  fontSize: '0.76rem',
+                  background: 'rgba(0,0,0,0.35)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: '4px',
+                  color: '#fff',
+                  textAlign: 'center',
+                  fontFamily: 'monospace'
+                }}
+              />
+              <span style={{ opacity: 0.85 }}>= 盤面</span>
+              <input
+                type="text"
+                value={anchorMarketInput}
+                onChange={(e) => setAnchorMarketInput(e.target.value)}
+                onBlur={() => handleApplyAnchor(anchorVideoInput, anchorMarketInput)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleApplyAnchor(anchorVideoInput, anchorMarketInput);
+                }}
+                disabled={state.status !== 'idle'}
+                placeholder="08:45:00"
+                title="該影片時間點對應的盤面時間（格式 HH:MM 或 HH:MM:SS）"
+                style={{
+                  width: '68px',
+                  padding: '1px 4px',
+                  fontSize: '0.76rem',
+                  background: 'rgba(0,0,0,0.35)',
+                  border: '1px solid rgba(255,255,255,0.25)',
+                  borderRadius: '4px',
+                  color: '#fff',
+                  textAlign: 'center',
+                  fontFamily: 'monospace'
+                }}
+              />
+              {state.status === 'idle' && (
+                <button
+                  type="button"
+                  onClick={handleClearPriceData}
+                  title="移除歷史資料"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#fca5a5',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    padding: '0 2px',
+                    lineHeight: 1
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
+          {priceError && (
+            <span style={{ color: '#fca5a5', fontSize: '0.78rem' }}>⚠️ {priceError}</span>
           )}
         </div>
 

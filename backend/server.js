@@ -46,9 +46,81 @@ const createRoomObject = (roomId) => ({
   guests: [], // { id, clientId, name, device, isOnline }
   videoId: '',
   videoTitle: '',
+  priceData: null, // { rows: [[sec, close], ...], sourceLabel, intervalSec, firstTimeStr, lastTimeStr, anchorVideoMs, anchorMarketSec, anchorMarketTime }
   tickInterval: null,
   lastTickTime: Date.now()
 });
+
+const formatMarketTime = (totalSec) => {
+  if (totalSec == null || isNaN(totalSec)) return '';
+  const normalized = ((Math.floor(totalSec) % 86400) + 86400) % 86400;
+  const h = Math.floor(normalized / 3600);
+  const m = Math.floor((normalized % 3600) / 60);
+  const s = normalized % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+};
+
+const serializePriceDataInfo = (priceData) => {
+  if (!priceData || !Array.isArray(priceData.rows) || priceData.rows.length === 0) return null;
+  return {
+    count: priceData.rows.length,
+    sourceLabel: priceData.sourceLabel || '歷史報價',
+    intervalSec: priceData.intervalSec || 60,
+    firstTimeStr: priceData.firstTimeStr || '',
+    lastTimeStr: priceData.lastTimeStr || '',
+    anchorVideoMs: priceData.anchorVideoMs || 0,
+    anchorMarketTime: priceData.anchorMarketTime || priceData.firstTimeStr || ''
+  };
+};
+
+// Binary search for the latest bar with barSec <= targetSec, attaching marketTime & close price to each click
+const enrichClicksWithPrices = (room) => {
+  if (!room.priceData || !Array.isArray(room.priceData.rows) || room.priceData.rows.length === 0) {
+    return;
+  }
+  const rows = room.priceData.rows; // sorted ascending by rows[i][0]
+  const firstSec = rows[0][0];
+  const lastSec = rows[rows.length - 1][0];
+  const anchorVideoMs = Number(room.priceData.anchorVideoMs) || 0;
+  let anchorMarketSec = Number(room.priceData.anchorMarketSec);
+  if (isNaN(anchorMarketSec)) anchorMarketSec = firstSec;
+
+  // Handle night session midnight wrap if anchor is post-midnight (e.g. 00:15 -> +86400)
+  if (anchorMarketSec < firstSec - 3600 && anchorMarketSec + 86400 <= lastSec + 3600) {
+    anchorMarketSec += 86400;
+  }
+
+  for (const click of room.clicks) {
+    const offsetSec = Math.floor((click.exactMs - anchorVideoMs) / 1000);
+    const targetSec = anchorMarketSec + offsetSec;
+    click.marketTime = formatMarketTime(targetSec);
+
+    // Binary search for largest index i where rows[i][0] <= targetSec
+    let lo = 0;
+    let hi = rows.length - 1;
+    let matchedIdx = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (rows[mid][0] <= targetSec) {
+        matchedIdx = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+
+    // If click occurred slightly before first bar (within 60s), clamp to first bar
+    if (matchedIdx === -1 && targetSec >= firstSec - 60) {
+      matchedIdx = 0;
+    }
+
+    if (matchedIdx !== -1) {
+      click.price = rows[matchedIdx][1];
+    } else {
+      click.price = null;
+    }
+  }
+};
 
 // Always ensure Classroom 1 exists for early guests arriving before any Host
 const getOrCreateRoom = (roomId) => {
@@ -98,6 +170,7 @@ const serializeRoomState = (room) => ({
   guests: serializeGuests(room),
   videoId: room.videoId,
   videoTitle: room.videoTitle,
+  priceDataInfo: serializePriceDataInfo(room.priceData),
   maxRooms: MAX_ROOMS
 });
 
@@ -160,12 +233,14 @@ const startRoomTick = (room) => {
       room.status = 'finished';
       clearInterval(room.tickInterval);
       room.tickInterval = null;
+      enrichClicksWithPrices(room);
       // Send final authoritative clicks + guests on finish so Excel export is 100% consistent
       broadcastRoomPatch(room.roomId, {
         status: 'finished',
         elapsedTimeMs: maxMs,
         clicks: room.clicks,
-        guests: serializeGuests(room)
+        guests: serializeGuests(room),
+        priceDataInfo: serializePriceDataInfo(room.priceData)
       });
       broadcastRoomsListIfChanged();
       return;
@@ -319,6 +394,47 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('set_price_data', (payload) => {
+    const room = getSocketRoom();
+    if (!room) return;
+    if (room.status === 'idle' && payload && Array.isArray(payload.rows) && payload.rows.length > 0) {
+      room.priceData = {
+        rows: payload.rows,
+        sourceLabel: payload.sourceLabel || '歷史報價',
+        intervalSec: Number(payload.intervalSec) || 60,
+        firstTimeStr: payload.firstTimeStr || '',
+        lastTimeStr: payload.lastTimeStr || '',
+        anchorVideoMs: Number(payload.anchorVideoMs) || 0,
+        anchorMarketSec: Number(payload.anchorMarketSec),
+        anchorMarketTime: payload.anchorMarketTime || payload.firstTimeStr || ''
+      };
+      // Only broadcast lightweight metadata (~120 bytes), NOT the raw rows!
+      broadcastRoomPatch(room.roomId, { priceDataInfo: serializePriceDataInfo(room.priceData) });
+    }
+  });
+
+  socket.on('update_price_anchor', ({ anchorVideoMs, anchorMarketSec, anchorMarketTime } = {}) => {
+    const room = getSocketRoom();
+    if (!room || !room.priceData) return;
+    if (room.status === 'idle') {
+      if (anchorVideoMs !== undefined) room.priceData.anchorVideoMs = Number(anchorVideoMs) || 0;
+      if (anchorMarketSec !== undefined && !isNaN(Number(anchorMarketSec))) {
+        room.priceData.anchorMarketSec = Number(anchorMarketSec);
+      }
+      if (anchorMarketTime) room.priceData.anchorMarketTime = String(anchorMarketTime);
+      broadcastRoomPatch(room.roomId, { priceDataInfo: serializePriceDataInfo(room.priceData) });
+    }
+  });
+
+  socket.on('clear_price_data', () => {
+    const room = getSocketRoom();
+    if (!room) return;
+    if (room.status === 'idle') {
+      room.priceData = null;
+      broadcastRoomPatch(room.roomId, { priceDataInfo: null });
+    }
+  });
+
   socket.on('set_video_metadata', ({ minutes, title }) => {
     const room = getSocketRoom();
     if (!room) return;
@@ -404,11 +520,13 @@ io.on('connection', (socket) => {
             clearInterval(room.tickInterval);
             room.tickInterval = null;
           }
+          enrichClicksWithPrices(room);
           broadcastRoomPatch(room.roomId, {
             status: 'finished',
             elapsedTimeMs: maxMs,
             clicks: room.clicks,
-            guests: serializeGuests(room)
+            guests: serializeGuests(room),
+            priceDataInfo: serializePriceDataInfo(room.priceData)
           });
           broadcastRoomsListIfChanged();
           return;
@@ -453,11 +571,13 @@ io.on('connection', (socket) => {
         clearInterval(room.tickInterval);
         room.tickInterval = null;
       }
+      enrichClicksWithPrices(room);
       broadcastRoomPatch(room.roomId, {
         status: 'finished',
         elapsedTimeMs: Math.round(room.elapsedTimeMs),
         clicks: room.clicks,
-        guests: serializeGuests(room)
+        guests: serializeGuests(room),
+        priceDataInfo: serializePriceDataInfo(room.priceData)
       });
       broadcastRoomsListIfChanged();
     }
