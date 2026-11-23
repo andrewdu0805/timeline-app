@@ -171,8 +171,82 @@ const serializeRoomState = (room) => ({
   videoId: room.videoId,
   videoTitle: room.videoTitle,
   priceDataInfo: serializePriceDataInfo(room.priceData),
+  hasServerDriveBridge: Boolean(process.env.GDRIVE_BRIDGE_URL),
   maxRooms: MAX_ROOMS
 });
+
+const isValidAppsScriptUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  return (
+    trimmed.startsWith('https://script.google.com/') ||
+    trimmed.startsWith('https://script.googleusercontent.com/')
+  );
+};
+
+const fetchYouTubeTitleOembed = async (videoId) => {
+  if (!videoId) return '';
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const url = `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=json`;
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return '';
+    const data = await res.json();
+    return data && data.title ? String(data.title).trim() : '';
+  } catch (e) {
+    return '';
+  }
+};
+
+const triggerDriveLookup = async (room, hostSocket, title, customBridgeUrl) => {
+  const bridgeUrl = (customBridgeUrl || room.driveBridgeUrl || process.env.GDRIVE_BRIDGE_URL || '').trim();
+  if (!bridgeUrl || !isValidAppsScriptUrl(bridgeUrl) || !title) return;
+
+  const lookupKey = `${room.videoId}:${title}`;
+  if (room.lastDriveLookupKey === lookupKey) return;
+  room.lastDriveLookupKey = lookupKey;
+
+  hostSocket.emit('drive_sync_status', { status: 'searching', title });
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const sep = bridgeUrl.includes('?') ? '&' : '?';
+    const res = await fetch(`${bridgeUrl}${sep}title=${encodeURIComponent(title)}`, {
+      redirect: 'follow',
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      hostSocket.emit('drive_sync_status', { status: 'error', title, message: `雲端回應錯誤 (${res.status})` });
+      return;
+    }
+
+    const data = await res.json();
+    if (data && data.found && data.base64) {
+      hostSocket.emit('drive_price_file', {
+        fileName: data.fileName || `${title}.csv`,
+        base64: data.base64,
+        title
+      });
+    } else {
+      hostSocket.emit('drive_sync_status', {
+        status: 'not_found',
+        title,
+        message: data && data.error ? data.error : ''
+      });
+    }
+  } catch (err) {
+    hostSocket.emit('drive_sync_status', {
+      status: 'error',
+      title,
+      message: err && err.name === 'AbortError' ? '雲端連線逾時' : '無法連線至 Google 雲端橋樑'
+    });
+  }
+};
 
 // Send only changed fields to sockets inside a specific room
 const broadcastRoomPatch = (roomId, patch) => {
@@ -385,12 +459,33 @@ io.on('connection', (socket) => {
   };
 
   // Host Control Events (scoped to the Host/Guest's current classroom)
-  socket.on('set_video_id', (id) => {
+  socket.on('set_video_id', async (payload) => {
     const room = getSocketRoom();
     if (!room) return;
     if (room.status === 'idle') {
+      const id = typeof payload === 'string' ? payload : (payload && payload.id ? payload.id : '');
+      const customBridgeUrl = typeof payload === 'object' && payload ? payload.driveBridgeUrl : '';
+      if (!id) return;
+
       room.videoId = id;
-      broadcastRoomPatch(room.roomId, { videoId: room.videoId });
+      room.videoTitle = '';
+      room.lastDriveLookupKey = null;
+      if (customBridgeUrl) {
+        room.driveBridgeUrl = customBridgeUrl;
+      }
+      broadcastRoomPatch(room.roomId, { videoId: room.videoId, videoTitle: '' });
+
+      // Try fetching YouTube title immediately via oEmbed so Google Drive lookup starts right away
+      const bridgeUrl = (customBridgeUrl || room.driveBridgeUrl || process.env.GDRIVE_BRIDGE_URL || '').trim();
+      if (bridgeUrl && isValidAppsScriptUrl(bridgeUrl)) {
+        const title = await fetchYouTubeTitleOembed(id);
+        if (title && room.videoId === id && room.status === 'idle') {
+          room.videoTitle = title;
+          broadcastRoomPatch(room.roomId, { videoTitle: room.videoTitle });
+          broadcastRoomsListIfChanged();
+          triggerDriveLookup(room, socket, title, bridgeUrl);
+        }
+      }
     }
   });
 
@@ -435,7 +530,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('set_video_metadata', ({ minutes, title }) => {
+  socket.on('set_video_metadata', ({ minutes, title, driveBridgeUrl }) => {
     const room = getSocketRoom();
     if (!room) return;
     if (room.status === 'idle') {
@@ -443,11 +538,19 @@ io.on('connection', (socket) => {
       if (title) {
         room.videoTitle = title;
       }
+      if (driveBridgeUrl) {
+        room.driveBridgeUrl = driveBridgeUrl;
+      }
       broadcastRoomPatch(room.roomId, {
         durationMinutes: room.durationMinutes,
         videoTitle: room.videoTitle
       });
       broadcastRoomsListIfChanged();
+
+      // Fallback: if oEmbed didn't trigger Drive lookup yet, trigger now using player's title
+      if (title) {
+        triggerDriveLookup(room, socket, title, driveBridgeUrl);
+      }
     }
   });
 

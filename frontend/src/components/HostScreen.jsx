@@ -9,8 +9,96 @@ const HostScreen = ({ socket, state, onLogout }) => {
   const [anchorMarketInput, setAnchorMarketInput] = useState('');
   const [anchorVideoInput, setAnchorVideoInput] = useState('00:00');
   const [priceError, setPriceError] = useState('');
+  const [driveStatus, setDriveStatus] = useState(null); // { status, title, fileName, message }
+  const [showDriveConfig, setShowDriveConfig] = useState(false);
+  const [driveBridgeUrl, setDriveBridgeUrl] = useState(() => {
+    try {
+      return localStorage.getItem('timeline_gdrive_bridge_url') || '';
+    } catch (e) {
+      return '';
+    }
+  });
+  const [driveUrlDraft, setDriveUrlDraft] = useState(() => {
+    try {
+      return localStorage.getItem('timeline_gdrive_bridge_url') || '';
+    } catch (e) {
+      return '';
+    }
+  });
   const fileInputRef = useRef(null);
   const localTimeMs = useLocalTime(state);
+
+  const hasDriveConnected = Boolean(state.hasServerDriveBridge || driveBridgeUrl);
+
+  // Listen for automatic Google Drive price file results from backend
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleDriveStatus = (info) => {
+      setDriveStatus(info);
+    };
+
+    const handleDriveFile = async ({ fileName, base64 }) => {
+      setPriceError('');
+      try {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        const virtualFile = {
+          name: fileName || 'drive.csv',
+          arrayBuffer: async () => bytes.buffer
+        };
+        const parsed = await parseHistoricalFile(virtualFile);
+        const defaultMarketTime = parsed.firstTimeStr;
+        setAnchorVideoInput('00:00');
+        setAnchorMarketInput(defaultMarketTime);
+
+        socket.emit('set_price_data', {
+          rows: parsed.rows,
+          sourceLabel: `☁️ ${parsed.sourceLabel}`,
+          intervalSec: parsed.intervalSec,
+          firstTimeStr: parsed.firstTimeStr,
+          lastTimeStr: parsed.lastTimeStr,
+          anchorVideoMs: 0,
+          anchorMarketSec: parsed.firstTimeSec,
+          anchorMarketTime: defaultMarketTime
+        });
+        setDriveStatus({ status: 'loaded', fileName });
+      } catch (err) {
+        setDriveStatus(null);
+        setPriceError(`雲端檔案「${fileName}」解析失敗：${err.message || ''}`);
+      }
+    };
+
+    socket.on('drive_sync_status', handleDriveStatus);
+    socket.on('drive_price_file', handleDriveFile);
+
+    return () => {
+      socket.off('drive_sync_status', handleDriveStatus);
+      socket.off('drive_price_file', handleDriveFile);
+    };
+  }, [socket]);
+
+  const handleSaveDriveUrl = () => {
+    const trimmed = driveUrlDraft.trim();
+    if (trimmed && !trimmed.startsWith('https://script.google.com/') && !trimmed.startsWith('https://script.googleusercontent.com/')) {
+      setPriceError('雲端橋樑網址必須是 https://script.google.com/... 開頭');
+      return;
+    }
+    setPriceError('');
+    setDriveBridgeUrl(trimmed);
+    try {
+      if (trimmed) localStorage.setItem('timeline_gdrive_bridge_url', trimmed);
+      else localStorage.removeItem('timeline_gdrive_bridge_url');
+    } catch (e) {}
+    setShowDriveConfig(false);
+    // If a video is already set in idle state, trigger lookup immediately
+    if (trimmed && state.videoId && state.status === 'idle') {
+      socket.emit('set_video_id', { id: state.videoId, driveBridgeUrl: trimmed });
+    }
+  };
 
   // Sync anchor display if state already has priceDataInfo (e.g. after refresh)
   useEffect(() => {
@@ -72,6 +160,7 @@ const HostScreen = ({ socket, state, onLogout }) => {
 
   const handleClearPriceData = () => {
     setPriceError('');
+    setDriveStatus(null);
     setAnchorMarketInput('');
     setAnchorVideoInput('00:00');
     socket.emit('clear_price_data');
@@ -80,7 +169,7 @@ const HostScreen = ({ socket, state, onLogout }) => {
   const handleDurationReady = (durationSecs, title) => {
     const mins = Math.ceil(durationSecs / 60);
     if (state.durationMinutes !== mins || (title && state.videoTitle !== title)) {
-      socket.emit('set_video_metadata', { minutes: mins, title });
+      socket.emit('set_video_metadata', { minutes: mins, title, driveBridgeUrl });
     }
   };
 
@@ -92,7 +181,8 @@ const HostScreen = ({ socket, state, onLogout }) => {
     if (match && match[1]) {
       id = match[1];
     }
-    socket.emit('set_video_id', id);
+    setDriveStatus(null);
+    socket.emit('set_video_id', { id, driveBridgeUrl });
     setVideoUrlInput(''); // clear input after setting
   };
 
@@ -228,10 +318,74 @@ const HostScreen = ({ socket, state, onLogout }) => {
             style={{ padding: '0.4rem 0.7rem', fontSize: '0.82rem' }}
             onClick={() => fileInputRef.current && fileInputRef.current.click()}
             disabled={state.status !== 'idle'}
-            title="上傳 XQ (.xlsx/.csv) 或 TradingView (.csv) 歷史收盤價資料"
+            title="手動上傳 XQ (.xlsx/.csv) 或 TradingView (.csv) 歷史收盤價資料"
           >
-            📊 {state.priceDataInfo ? '更換歷史資料' : '上傳歷史資料 (.csv/.xlsx)'}
+            📊 {state.priceDataInfo ? '更換歷史資料' : '上傳歷史資料'}
           </button>
+
+          {state.status === 'idle' && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{
+                padding: '0.4rem 0.65rem',
+                fontSize: '0.78rem',
+                borderColor: hasDriveConnected ? 'rgba(16, 185, 129, 0.5)' : undefined,
+                color: hasDriveConnected ? '#a7f3d0' : undefined
+              }}
+              onClick={() => setShowDriveConfig(!showDriveConfig)}
+              title="設定 Google 雲端硬碟自動抓取橋樑網址（設定一次即可）"
+            >
+              ☁️ {hasDriveConnected ? '雲端已連結' : '雲端設定'}
+            </button>
+          )}
+
+          {showDriveConfig && state.status === 'idle' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              background: 'rgba(15, 23, 42, 0.85)',
+              border: '1px solid rgba(148, 163, 184, 0.35)',
+              padding: '0.3rem 0.55rem',
+              borderRadius: '6px',
+              fontSize: '0.78rem',
+              flexWrap: 'wrap'
+            }}>
+              <input
+                type="text"
+                value={driveUrlDraft}
+                onChange={(e) => setDriveUrlDraft(e.target.value)}
+                placeholder="貼上 Google Apps Script 網址 (https://script.google.com/macros/s/.../exec)"
+                className="glass-input"
+                style={{ width: '280px', padding: '0.25rem 0.45rem', fontSize: '0.76rem' }}
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ padding: '0.25rem 0.6rem', fontSize: '0.76rem' }}
+                onClick={handleSaveDriveUrl}
+              >
+                儲存
+              </button>
+            </div>
+          )}
+
+          {driveStatus && driveStatus.status === 'searching' && (
+            <span style={{ color: '#93c5fd', fontSize: '0.78rem' }}>
+              ⏳ 正在雲端尋找「{driveStatus.title}」...
+            </span>
+          )}
+          {driveStatus && driveStatus.status === 'not_found' && !state.priceDataInfo && (
+            <span style={{ color: '#fde68a', fontSize: '0.78rem' }}>
+              ℹ️ 雲端找不到「{driveStatus.title}」同名檔（可手動上傳）
+            </span>
+          )}
+          {driveStatus && driveStatus.status === 'error' && !state.priceDataInfo && (
+            <span style={{ color: '#fca5a5', fontSize: '0.78rem' }}>
+              ⚠️ {driveStatus.message || '雲端讀取失敗'}
+            </span>
+          )}
 
           {state.priceDataInfo && (
             <div style={{
