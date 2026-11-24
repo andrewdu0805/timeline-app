@@ -235,14 +235,14 @@ export const parseHistoricalFile = async (file) => {
     prevSec = adjusted;
   }
 
-  // Estimate bar interval (median diff among first 50 rows)
+  // Estimate bar interval (use 10th percentile across up to 200 rows so quiet seconds with no trades don't skew 1s bars)
   const diffs = [];
-  for (let i = 1; i < Math.min(rows.length, 50); i++) {
+  for (let i = 1; i < Math.min(rows.length, 200); i++) {
     const d = rows[i][0] - rows[i - 1][0];
     if (d > 0) diffs.push(d);
   }
   diffs.sort((a, b) => a - b);
-  const intervalSec = diffs.length > 0 ? diffs[Math.floor(diffs.length / 2)] : 60;
+  const intervalSec = diffs.length > 0 ? diffs[Math.floor(diffs.length * 0.1)] : 60;
 
   return {
     rows,

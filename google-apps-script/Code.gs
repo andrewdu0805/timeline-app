@@ -19,7 +19,7 @@ function normalizeName(name) {
   return String(name || '')
     .trim()
     .replace(/\.(csv|xlsx|xls)$/i, '')
-    .trim()
+    .replace(/[\s_\-]+/g, '')
     .toLowerCase();
 }
 

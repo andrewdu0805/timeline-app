@@ -401,7 +401,7 @@ const HostScreen = ({ socket, state, onLogout }) => {
               flexWrap: 'wrap'
             }}>
               <span style={{ fontWeight: 'bold' }}>
-                ✅ {state.priceDataInfo.sourceLabel} {state.priceDataInfo.intervalSec <= 1 ? '1秒K' : `${Math.round(state.priceDataInfo.intervalSec / 60)}分K`} ({state.priceDataInfo.count}筆)
+                ✅ {state.priceDataInfo.sourceLabel} {state.priceDataInfo.intervalSec < 60 ? `${state.priceDataInfo.intervalSec}秒K` : `${Math.round(state.priceDataInfo.intervalSec / 60)}分K`} ({state.priceDataInfo.count}筆)
               </span>
               <span style={{ opacity: 0.85 }}>影片</span>
               <input

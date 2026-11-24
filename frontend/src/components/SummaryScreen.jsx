@@ -75,7 +75,7 @@ const SummaryScreen = ({ state, onReset, role, onLogout }) => {
         sheetData.push(["影片連結", videoUrl || "未設定"]);
         sheetData.push(["影片名稱", state.videoTitle || "未設定"]);
         if (pInfo) {
-          const intervalLabel = pInfo.intervalSec <= 1 ? '1秒K' : `${Math.round(pInfo.intervalSec / 60)}分K`;
+          const intervalLabel = pInfo.intervalSec < 60 ? `${pInfo.intervalSec}秒K` : `${Math.round(pInfo.intervalSec / 60)}分K`;
           sheetData.push([
             "歷史報價資料",
             `${pInfo.sourceLabel} ${intervalLabel} (共 ${pInfo.count} 筆 · ${pInfo.firstTimeStr} ~ ${pInfo.lastTimeStr})`
@@ -234,7 +234,7 @@ const SummaryScreen = ({ state, onReset, role, onLogout }) => {
             transform: 'translateX(-50%)'
           }}>
             📊 已合併歷史報價：{state.priceDataInfo.sourceLabel}{' '}
-            {state.priceDataInfo.intervalSec <= 1 ? '1秒K' : `${Math.round(state.priceDataInfo.intervalSec / 60)}分K`}
+            {state.priceDataInfo.intervalSec < 60 ? `${state.priceDataInfo.intervalSec}秒K` : `${Math.round(state.priceDataInfo.intervalSec / 60)}分K`}
             （影片 {formatTime(state.priceDataInfo.anchorVideoMs || 0)} = 盤面 {state.priceDataInfo.anchorMarketTime || state.priceDataInfo.firstTimeStr}）
           </div>
         )}
