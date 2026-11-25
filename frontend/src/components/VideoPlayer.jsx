@@ -5,6 +5,13 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
   const playerRef = useRef(null);
   const latestTimeRef = useRef(state.elapsedTimeMs);
   const durationReportedRef = useRef(false);
+  const isPreviewingRef = useRef(false);
+  const previewedVideoIdRef = useRef(null);
+  const statusRef = useRef(state.status);
+
+  useEffect(() => {
+    statusRef.current = state.status;
+  }, [state.status]);
 
   useEffect(() => {
     const diff = Math.abs(state.elapsedTimeMs - latestTimeRef.current);
@@ -26,9 +33,10 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
     }
   }, [state.elapsedTimeMs, state.status]);
 
-  // Reset duration reported flag when video changes
+  // Reset flags when video changes
   useEffect(() => {
     durationReportedRef.current = false;
+    isPreviewingRef.current = false;
   }, [videoId]);
 
   const syncPlayer = () => {
@@ -40,6 +48,9 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
       player.setPlaybackRate(state.speed);
 
       if (state.status === 'running') {
+        isPreviewingRef.current = false;
+        if (player.unMute) player.unMute();
+
         const currentVideoTime = player.getCurrentTime() || 0;
         const expectedTime = latestTimeRef.current / 1000;
         
@@ -48,13 +59,24 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
         }
         player.playVideo();
       } else if (state.status === 'idle') {
-        player.seekTo(0, true);
-        player.pauseVideo();
+        // Decode and pause on the actual first frame (00:00) once per video so Host can read the chart start time
+        if (previewedVideoIdRef.current !== videoId) {
+          previewedVideoIdRef.current = videoId;
+          isPreviewingRef.current = true;
+          if (player.mute) player.mute();
+          player.seekTo(0, true);
+          player.playVideo();
+        } else if (!isPreviewingRef.current) {
+          player.seekTo(0, true);
+          player.pauseVideo();
+        }
       } else if (state.status === 'paused') {
+        isPreviewingRef.current = false;
         const expectedTime = latestTimeRef.current / 1000;
         player.seekTo(expectedTime, true);
         player.pauseVideo();
       } else if (state.status === 'finished') {
+        isPreviewingRef.current = false;
         player.pauseVideo();
       }
     } catch (e) {
@@ -93,6 +115,16 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
 
   const onStateChange = (event) => {
     checkDuration();
+
+    // As soon as the muted first-frame preview starts playing (state 1), immediately pause at 00:00 & unmute
+    if (isPreviewingRef.current && event.data === 1 && statusRef.current === 'idle') {
+      isPreviewingRef.current = false;
+      try {
+        event.target.pauseVideo();
+        event.target.seekTo(0, true);
+        if (event.target.unMute) event.target.unMute();
+      } catch (e) {}
+    }
   };
 
   // Sync on major state changes
