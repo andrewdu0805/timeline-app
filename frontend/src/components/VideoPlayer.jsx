@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import YouTube from 'react-youtube';
 
 const VideoPlayer = ({ videoId, state, onDurationReady }) => {
@@ -8,9 +8,14 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
   const isPreviewingRef = useRef(false);
   const previewedVideoIdRef = useRef(null);
   const statusRef = useRef(state.status);
+  const [unlockControls, setUnlockControls] = useState(false);
 
   useEffect(() => {
     statusRef.current = state.status;
+    // Automatically engage hover-shield whenever playback starts/resumes
+    if (state.status === 'running') {
+      setUnlockControls(false);
+    }
   }, [state.status]);
 
   useEffect(() => {
@@ -181,8 +186,10 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
     );
   }
 
+  const isShieldActive = state.status === 'running' && !unlockControls;
+
   return (
-    <div className="video-player-container">
+    <div className={`video-player-container ${isShieldActive ? 'video-shielded' : ''}`}>
       <YouTube 
         videoId={videoId} 
         opts={opts} 
@@ -190,6 +197,17 @@ const VideoPlayer = ({ videoId, state, onDurationReady }) => {
         onStateChange={onStateChange}
         className="youtube-iframe"
       />
+      {isShieldActive && <div className="video-hover-shield" />}
+      {state.status === 'running' && (
+        <button
+          type="button"
+          className={`video-shield-toggle ${unlockControls ? 'unlocked' : ''}`}
+          onClick={() => setUnlockControls((prev) => !prev)}
+          title={unlockControls ? '鎖定影片畫面（滑鼠移入不轉暗、不彈出控制列）' : '暫時解鎖影片以調整 YouTube 畫質或音量'}
+        >
+          {unlockControls ? '🔒 鎖定畫面' : '⚙️ 調畫質'}
+        </button>
+      )}
     </div>
   );
 };
